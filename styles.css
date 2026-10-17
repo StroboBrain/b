@@ -34,11 +34,12 @@ button:disabled, .preset-tile:has(:disabled) { cursor: default; opacity: .4; }
 .skip-link { position: absolute; top: 12px; left: 12px; z-index: 10; padding: 12px 20px; background: var(--paper); color: var(--ink); text-decoration: none; transform: translateY(-150%); }
 .skip-link:focus { transform: translateY(0); }
 .app-shell { max-width: 640px; margin: auto; padding: 24px 32px 32px; }
-.site-header { min-height: 44px; display: flex; justify-content: flex-end; margin-bottom: 20px; }
+.install-footer:has(#install-button:not([hidden])) { margin-top: 24px; }
+#install-button { width: 100%; }
 .practice-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .practice-card, .settings-card { min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .practice-card { position: relative; padding: 24px; display: flex; flex-direction: column; container-type: inline-size; }
-.breathing-visual { --orb-size: 73%; --breath-small: .62; --breath-large: 1.16; --breath-dark: #262626; --breath-light: #555; width: 310px; height: 310px; position: relative; display: grid; place-items: center; margin: 28px auto; flex-shrink: 0; }
+.breathing-visual { --orb-size: 73%; --breath-small: .62; --breath-large: 1.16; --breath-dark: #262626; --breath-light: #555; width: min(310px, 100%, max(80px, calc(100svh - 220px))); aspect-ratio: 1; position: relative; display: grid; place-items: center; margin: 28px auto; flex-shrink: 0; }
 .breathing-orb { position: relative; width: var(--orb-size); height: var(--orb-size); border-radius: 50%; overflow: hidden; background-color: var(--breath-dark); background-image: radial-gradient(circle at 36% 27%, #f5f5f51a 0%, transparent 45%, #0000002e 100%); transform: scale(var(--breath-small)); will-change: transform; }
 .breath-guide { position: absolute; inset: 0; margin: auto; z-index: 1; overflow: visible; pointer-events: none; }
 .breath-guide circle { fill: none; stroke: #929292; stroke-width: 1px; stroke-dasharray: 0 5; stroke-linecap: round; }
@@ -94,7 +95,6 @@ button:disabled, .preset-tile:has(:disabled) { cursor: default; opacity: .4; }
 .practice-card:not([data-state="idle"]) #session-button { background: #242424; border-color: #777; color: #bbb; }
 .button-outline { background: transparent; color: #ccc; border-color: var(--line-strong); }
 .button-outline:hover:not(:disabled) { background: #ffffff08; border-color: #777; }
-.button-small { min-height: 44px; padding: 10px 14px; }
 .icon-play { width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 9px solid currentColor; transform: translateX(1px); }
 .icon-stop { width: 10px; height: 10px; background: currentColor; border-radius: 1px; }
 .display-controls, .cue-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 16px; }
@@ -156,22 +156,16 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { appearance:
   .time-choices { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
-/* An installed app never receives an install prompt, so it needs no reserved header. */
-@media (display-mode: standalone) {
-  .site-header { display: none; }
-}
 @media (max-width: 900px) {
   .app-shell { padding-right: 24px; padding-left: 24px; }
   .practice-layout { gap: 18px; }
   .practice-card, .settings-card { padding: 22px; }
-  .breathing-visual { width: 260px; height: 260px; }
   .phase-step { gap: 4px; }
   .phase-dot { display: none; }
 }
 @media (max-width: 760px) {
   .app-shell { max-width: 540px; padding: 20px 20px max(24px, env(safe-area-inset-bottom)); }
   .practice-layout { gap: 20px; }
-  .breathing-visual { width: 270px; height: 270px; margin: 24px auto; }
   .phase-count { font-size: 60px; }
   .phase-step { gap: 6px; }
   .phase-dot { display: block; }
@@ -179,16 +173,15 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { appearance:
 @media (max-width: 360px) {
   .app-shell { padding-right: 16px; padding-left: 16px; }
   .practice-card, .settings-card { padding: 18px; }
-  .breathing-visual { width: 240px; height: 240px; }
   .phase-step { gap: 4px; }
   .phase-dot { display: none; }
   .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.site-header, .settings-card, .phase-track, .preset-options, .display-controls, .cue-controls, .hold-options, .skip-link {
+.install-footer, .settings-card, .phase-track, .preset-options, .display-controls, .cue-controls, .hold-options, .skip-link {
   transition: opacity .3s ease, visibility 0s linear;
 }
-.is-zen .site-header, .is-zen .settings-card, .is-zen .phase-track,
+.is-zen .install-footer, .is-zen .settings-card, .is-zen .phase-track,
 .is-zen .preset-options, .is-zen .display-controls, .is-zen .cue-controls, .is-zen .hold-options, .is-zen .skip-link {
   opacity: 0;
   visibility: hidden;
@@ -213,8 +206,8 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { appearance:
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
-  /* Keep timing visible without spatial motion. */
-  .breathing-orb { transform: scale(.9) !important; will-change: auto; }
+  /* Keep decorative motion quiet; the user-started breathing guide still moves. */
+  .breathing-visual[data-state="idle"] .breathing-orb { transform: scale(.9); will-change: auto; }
   .breathing-visual .hold-fill { clip-path: none; background: #6b6b6b; opacity: var(--hold-progress); }
   .hold-sample .hold-fill { animation: none !important; }
   .is-zen:has(#fade-buttons:checked) :is(#session-button, #zen-back, .orb-copy, .notification, .practice-card) { animation-duration: 0s; }

@@ -5,6 +5,7 @@ import { SessionDriver } from './session-driver.js';
 import { WakeLockGuard } from './wake-lock-guard.js';
 import { ZenNavigator } from './zen-navigator.js';
 import { PhaseCues } from './phase-cues.js';
+import { OfflineSupport } from './offline-support.js';
 
 const phaseLabel = (phase) => (phase.startsWith('hold') ? 'hold' : phase);
 const TOGGLE_PREFERENCES = {
@@ -65,9 +66,11 @@ export class BreathingApp {
     this.#window = window;
     this.#elements = collectElements(document);
     this.#store = store;
-    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.site-header, .settings-card, #phase-track, .preset-options, .display-controls, .cue-controls, .hold-options, .skip-link'));
+    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .settings-card, #phase-track, .preset-options, .display-controls, .cue-controls, .hold-options, .skip-link'));
     this.#wakeLock = new WakeLockGuard({ navigator: window.navigator, document });
-    this.#cues = new PhaseCues({ window, navigator: window.navigator, document });
+    this.#cues = new PhaseCues({ window, navigator: window.navigator, document,
+      onVibrationBlocked: () => this.#notify('vibration was blocked. check your browser and phone settings.'),
+    });
     this.#session = new SessionDriver({ engine,
       raf: window.requestAnimationFrame.bind(window), caf: window.cancelAnimationFrame.bind(window),
       onChange: (snapshot) => {
@@ -277,6 +280,9 @@ export class BreathingApp {
   #setPreference(key, value) {
     this.#preferences[key] = value;
     this.#syncPreferences();
+    if (key === 'vibration' && value && this.#cues.previewVibration()) {
+      this.#notify('no vibration? switch your phone from silent to ring or vibrate.');
+    }
     try {
       this.#store.savePreferences(this.#preferences);
     } catch (error) {
@@ -307,8 +313,7 @@ export class BreathingApp {
   }
 
   #syncInstallButton() {
-    // Keep the header's current footprint throughout an exercise.
-    if (!this.#zenMode) this.#elements['install-button'].hidden = this.#installPrompt === null;
+    this.#elements['install-button'].hidden = this.#installPrompt === null;
   }
 
   #setZenMode(enabled) {
@@ -340,6 +345,8 @@ export class BreathingApp {
     if (status === 'paused') this.#session.resume();
     else this.#session.start(this.#config);
     this.#navigation.enter();
+    // Starting and resuming share the same viewport behavior on every device.
+    this.#window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     this.#wakeLock.acquire();
   }
 
@@ -409,9 +416,8 @@ export class BreathingApp {
   }
 
   #registerOfflineSupport() {
-    if (!('serviceWorker' in this.#window.navigator) || !this.#window.isSecureContext) return;
-    this.#window.navigator.serviceWorker.register('./sw.js').catch(() => {
-      this.#notify('offline mode unavailable. reopen b while online to retry.');
-    });
+    new OfflineSupport({ window: this.#window, document: this.#document,
+      onUnavailable: () => this.#notify('offline mode unavailable. reopen b while online to retry.'),
+    }).start();
   }
 }

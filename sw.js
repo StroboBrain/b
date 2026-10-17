@@ -1,11 +1,12 @@
 // Keep the legacy prefix so each hosted path can clean up its earlier caches.
 const CACHE_PREFIX = `still-${encodeURIComponent(self.registration.scope)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}20c328001d2a`;
+const CACHE_NAME = `${CACHE_PREFIX}2140de9d92b6`;
 const APP_SHELL = [
   './index.html',
   './styles.css',
   './js/app.js',
   './js/main.js',
+  './js/offline-support.js',
   './js/preset-editor.js',
   './js/session-driver.js',
   './js/phase-cues.js',
@@ -23,16 +24,27 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   // A new shell must not inherit stale bytes from the browser's HTTP cache.
   const requests = APP_SHELL.map((path) => new Request(new URL(path, self.registration.scope), { cache: 'reload' }));
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(requests)));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll(requests);
+    // Activate only after the complete new version is available offline.
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys
-      .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
-      .map((key) => caches.delete(key)));
+    const previousVersions = keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME);
+    await Promise.all(previousVersions.map((key) => caches.delete(key)));
     await self.clients.claim();
+    if (previousVersions.length) {
+      // Reload even legacy clients that have no controllerchange listener.
+      // Their pagehide handler saves pending edits before navigation.
+      const clients = await self.clients.matchAll({ type: 'window' });
+      // Do not await navigation inside activate: its fetch waits for activation.
+      for (const client of clients) client.navigate(client.url).catch(() => {});
+    }
   })());
 });
 
