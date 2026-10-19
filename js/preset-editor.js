@@ -1,4 +1,4 @@
-import { configsEqual, validateConfig } from './breathing-engine.js';
+import { configsEqual, DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
 import { PersistenceError } from './preset-store.js';
 
 /** Edits stay in memory until flush; selection alone never writes a preset override.
@@ -23,6 +23,22 @@ export class PresetEditor {
   get presets() { return this.#presets; }
   get selected() { return this.#presets.find((preset) => preset.id === this.#selectedId); }
 
+  /** Add and select an independent preset; failed saves remain available for retry. */
+  add() {
+    this.flush();
+    let name = 'New preset';
+    for (let suffix = 2; this.#presets.some((preset) => preset.name.toLowerCase() === name.toLowerCase()); suffix++) {
+      name = `New preset ${suffix}`;
+    }
+    const preset = { id: `preset-${globalThis.crypto.randomUUID()}`, name, config: { ...DEFAULT_CONFIG } };
+    this.#presets.push(preset);
+    this.#selectedId = preset.id;
+    this.#dirty.add(preset.id);
+    this.#selectionDirty = true;
+    this.flush();
+    return preset;
+  }
+
   rename(name) {
     if (typeof name !== 'string') throw new TypeError('A preset name must be a string.');
     name = name.trim();
@@ -30,6 +46,19 @@ export class PresetEditor {
     if (name === this.selected.name) return;
     this.selected.name = name;
     this.#dirty.add(this.#selectedId);
+  }
+
+  /** Commit deletion before removing it from the UI; failed saves leave it available. */
+  remove() {
+    if (this.#presets.length <= 2) throw new RangeError('Keep at least two presets.');
+    if (!this.flush()) return false;
+    const index = this.#presets.findIndex((preset) => preset.id === this.#selectedId);
+    if (!this.#persist(() => this.#store.deletePreset(this.#selectedId))) return false;
+    this.#presets.splice(index, 1);
+    this.#selectedId = this.#presets[Math.min(index, this.#presets.length - 1)].id;
+    this.#selectionDirty = true;
+    this.#saveSelection();
+    return true;
   }
 
   setConfig(config) {
@@ -41,11 +70,11 @@ export class PresetEditor {
 
   select(id) {
     if (!this.#presets.some((preset) => preset.id === id)) throw new RangeError('Choose an available preset.');
-    this.flush();
+    const saved = this.flush();
     if (this.#selectedId === id) return;
     this.#selectedId = id;
     this.#selectionDirty = true;
-    this.#saveSelection();
+    if (saved) this.#saveSelection();
   }
 
   flush() {
@@ -60,6 +89,7 @@ export class PresetEditor {
   refresh() {
     if (!this.flush()) return false;
     this.#presets = this.#store.listPresets();
+    if (!this.selected) this.#selectedId = this.#presets[0].id;
     return true;
   }
 

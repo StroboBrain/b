@@ -10,9 +10,9 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   showBreathText: true,
   showBreathNumbers: true,
   showBreathGuides: true,
+  showPhaseTimings: true,
   fadeButtons: false,
   soundCue: false,
-  vibration: false,
   holdFeedback: 'rise',
 });
 
@@ -21,17 +21,26 @@ const freezePreset = (preset) => Object.freeze({
   config: Object.freeze(preset.config),
 });
 
-/** Four built-in exercises and two custom slots. IDs are stable; edits are stored as overrides. */
+/** Four built-in exercises. Added presets and edits share local storage with stable IDs. */
 const BASE_PRESETS = Object.freeze([
   freezePreset({ id: 'box', name: 'Box breathing', config: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 } }),
   freezePreset({ id: 'slow', name: 'Slow breathing', config: { inhale: 4, holdIn: 0, exhale: 6, holdOut: 0 } }),
   freezePreset({ id: '478', name: '4–7–8 breathing', config: { inhale: 4, holdIn: 7, exhale: 8, holdOut: 0 } }),
   freezePreset({ id: 'equal', name: 'Equal breathing', config: { inhale: 5, holdIn: 0, exhale: 5, holdOut: 0 } }),
-  freezePreset({ id: 'custom-1', name: 'Custom 1', config: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 } }),
-  freezePreset({ id: 'custom-2', name: 'Custom 2', config: { inhale: 4, holdIn: 0, exhale: 6, holdOut: 0 } }),
 ]);
 
 const findBase = (id) => BASE_PRESETS.find((preset) => preset.id === id);
+const isAddedId = (id) => typeof id === 'string'
+  && /^preset-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
+const isLegacyId = (id) => id === 'custom-1' || id === 'custom-2';
+
+function presetsFromOverrides(overrides) {
+  return [
+    ...BASE_PRESETS.map((preset) => overrides.find((entry) => entry.id === preset.id) ?? copyPreset(preset))
+      .filter((preset) => !preset.deleted),
+    ...overrides.filter((preset) => !findBase(preset.id)),
+  ];
+}
 
 export class PersistenceError extends Error {
   constructor(cause) {
@@ -115,21 +124,38 @@ export class PresetStore {
 
   /** @returns {Array<{id: string, name: string, config: object}>} All presets with saved edits. */
   listPresets() {
-    const overrides = this.#readOverrides(false);
-    return BASE_PRESETS.map((preset) => overrides.find((entry) => entry.id === preset.id) ?? copyPreset(preset));
+    return presetsFromOverrides(this.#readOverrides(false));
   }
 
-  /** Edit a preset's name and timing; values equal to the base preset store no override. */
+  /** Delete any preset, including built-ins, while keeping at least two available. */
+  deletePreset(id) {
+    if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
+    const previous = this.#readOverrides(true);
+    const presets = presetsFromOverrides(previous);
+    if (!presets.some((preset) => preset.id === id)) throw new RangeError('Choose an available preset.');
+    if (presets.length <= 2) throw new RangeError('Keep at least two presets.');
+    const overrides = previous.filter((preset) => preset.id !== id);
+    if (findBase(id)) overrides.push({ id, deleted: true });
+    this.#write(PRESET_OVERRIDES_KEY, overrides);
+  }
+
+  /** Save an added preset or edit a built-in; unchanged built-ins store no override. */
   savePreset(id, name, config) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
     const normalizedName = validateName(name);
     const normalizedConfig = validateConfig(config);
     const base = findBase(id);
-    if (!base) throw new RangeError('Choose an available preset.');
     const preset = { id, name: normalizedName, config: normalizedConfig };
     const previous = this.#readOverrides(true);
-    const overrides = previous.filter((entry) => entry.id !== id);
-    if (base.name !== preset.name || !configsEqual(base.config, preset.config)) overrides.push(preset);
+    if (!base && !isAddedId(id) && !previous.some((entry) => entry.id === id)) {
+      throw new RangeError('Choose an available preset.');
+    }
+    const overrides = [...previous];
+    const index = overrides.findIndex((entry) => entry.id === id);
+    if (base && base.name === preset.name && configsEqual(base.config, preset.config)) {
+      if (index !== -1) overrides.splice(index, 1);
+    } else if (index === -1) overrides.push(preset);
+    else overrides[index] = preset;
     if (JSON.stringify(previous) !== JSON.stringify(overrides)) this.#write(PRESET_OVERRIDES_KEY, overrides);
     return copyPreset(preset);
   }
@@ -137,13 +163,15 @@ export class PresetStore {
   /** @returns {string|null} The last selected preset ID, if it is still available. */
   loadSelection() {
     const id = this.#read(SELECTION_KEY, false);
-    return findBase(id) ? id : null;
+    return this.listPresets().some((preset) => preset.id === id) ? id : null;
   }
 
   /** Save the selected preset ID. */
   saveSelection(id) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
-    if (!findBase(id)) throw new RangeError('Choose an available preset.');
+    if (!presetsFromOverrides(this.#readOverrides(true)).some((preset) => preset.id === id)) {
+      throw new RangeError('Choose an available preset.');
+    }
     this.#write(SELECTION_KEY, id);
     return id;
   }
@@ -182,13 +210,21 @@ export class PresetStore {
     const ids = new Set();
     const overrides = [];
     for (const entry of stored) {
-      if (!findBase(entry?.id) || ids.has(entry.id)) continue;
+      if ((!findBase(entry?.id) && !isAddedId(entry?.id) && !isLegacyId(entry?.id)) || ids.has(entry.id)) continue;
       try {
-        overrides.push({ id: entry.id, name: validateName(entry.name), config: validateConfig(entry.config) });
+        overrides.push(findBase(entry.id) && entry.deleted === true ? { id: entry.id, deleted: true }
+          : { id: entry.id, name: validateName(entry.name), config: validateConfig(entry.config) });
         ids.add(entry.id);
       } catch {
         // A damaged edit must not replace a valid preset or hide other edits.
       }
+    }
+    // Corrupt deletion records must never leave the app without two usable presets.
+    let count = presetsFromOverrides(overrides).length;
+    for (let index = overrides.length - 1; count < 2 && index >= 0; index--) {
+      if (!overrides[index].deleted) continue;
+      overrides.splice(index, 1);
+      count++;
     }
     return overrides;
   }

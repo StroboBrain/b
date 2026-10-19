@@ -1,17 +1,11 @@
 const FREQUENCIES = Object.freeze({ inhale: 440, holdIn: 520, exhale: 330, holdOut: 260 });
 const MAX_CUE_DELAY_MS = 250;
-const VIBRATION_DURATION_MS = 120;
 
 /** Optional phase cues. Audio is unlocked by a user gesture; repeated frames and resumes stay quiet. */
 export class PhaseCues {
   #AudioContext;
-  #navigator;
   #document;
   #sound = false;
-  #vibration = false;
-  #vibrating = false;
-  #onVibrationBlocked;
-  #vibrationWarningShown = false;
   #context = null;
   #unlocking = null;
   #tone = null;
@@ -19,25 +13,17 @@ export class PhaseCues {
   #snapshot = null;
   #phaseKey = '';
 
-  constructor({ window = globalThis.window, navigator = globalThis.navigator,
-    document = globalThis.document, onVibrationBlocked = () => {} } = {}) {
-    if (typeof onVibrationBlocked !== 'function') throw new TypeError('vibration callback must be a function');
+  constructor({ window = globalThis.window, document = globalThis.document } = {}) {
     this.#AudioContext = window?.AudioContext;
-    this.#navigator = navigator;
     this.#document = document;
-    this.#onVibrationBlocked = onVibrationBlocked;
   }
 
   get soundSupported() { return typeof this.#AudioContext === 'function'; }
-  get vibrationSupported() { return typeof this.#navigator?.vibrate === 'function'; }
 
-  /** @param {{soundCue: boolean, vibration: boolean}} preferences */
-  configure({ soundCue, vibration }) {
+  /** @param {{soundCue: boolean}} preferences */
+  configure({ soundCue }) {
     this.#sound = soundCue;
-    if (this.#vibration !== vibration) this.#vibrationWarningShown = false;
-    this.#vibration = vibration;
     if (!soundCue) this.#closeAudio();
-    if (!vibration) this.#cancelVibration();
   }
 
   /** Call synchronously from the start/resume gesture, before updating the session. */
@@ -76,27 +62,11 @@ export class PhaseCues {
     this.#cancelTone();
     this.#pending = this.#sound && this.#context ? key : null;
     this.#flushAudio();
-    this.#pulseVibration();
-  }
-
-  /** Call from the vibration toggle's user gesture. Acceptance cannot confirm physical vibration. */
-  previewVibration() { return this.#pulseVibration(); }
-
-  #pulseVibration() {
-    if (!this.#vibration || !this.vibrationSupported || this.#document?.hidden) return false;
-    try { this.#vibrating = this.#navigator.vibrate(VIBRATION_DURATION_MS) === true; }
-    catch { this.#vibrating = false; }
-    if (!this.#vibrating && !this.#vibrationWarningShown) {
-      this.#vibrationWarningShown = true;
-      this.#onVibrationBlocked();
-    }
-    return this.#vibrating;
   }
 
   stop() {
     this.#snapshot = null;
     this.#closeAudio();
-    this.#cancelVibration();
   }
 
   #flushAudio() {
@@ -145,11 +115,5 @@ export class PhaseCues {
     this.#context = null;
     if (!context) return;
     try { Promise.resolve(context.close()).catch(() => {}); } catch {}
-  }
-
-  #cancelVibration() {
-    if (!this.#vibrating) return;
-    this.#vibrating = false;
-    try { this.#navigator.vibrate(0); } catch {}
   }
 }

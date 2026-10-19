@@ -12,18 +12,18 @@ const TOGGLE_PREFERENCES = {
   'show-breath-text': 'showBreathText',
   'show-breath-guides': 'showBreathGuides',
   'show-breath-numbers': 'showBreathNumbers',
+  'show-phase-timings': 'showPhaseTimings',
   'fade-buttons': 'fadeButtons',
   'sound-cue': 'soundCue',
-  'vibration': 'vibration',
 };
 
 export const REQUIRED_IDS = Object.freeze([
   'practice', 'breathing-visual', 'breathing-orb', 'hold-fill', 'phase-caption',
   'phase-count', 'phase-track', 'phase-announcement', 'session-button',
-  'session-button-icon', 'session-button-label', 'hold-choices', 'preset-name',
-  'preset-tiles', 'preset-selector', 'preset-fields', 'settings-form', 'settings-fields', 'settings-note', 'timing-fields',
+  'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields', 'preset-name',
+  'preset-tiles', 'preset-selector', 'delete-preset', 'preset-fields', 'settings-form', 'settings-fields', 'settings-note', 'timing-fields',
   'zen-back', 'install-button', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
-  ...PHASES.flatMap((phase) => [`${phase}-value`, `track-${phase}`]),
+  ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-slider`, `${phase}-picker`, `${phase}-picked-value`, `track-${phase}`]),
 ]);
 
 export function collectElements(document) {
@@ -66,11 +66,9 @@ export class BreathingApp {
     this.#window = window;
     this.#elements = collectElements(document);
     this.#store = store;
-    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .settings-card, #phase-track, .preset-options, .display-controls, .cue-controls, .hold-options, .skip-link'));
+    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .settings-card, .preset-options, .display-options, .hold-options, .skip-link'));
     this.#wakeLock = new WakeLockGuard({ navigator: window.navigator, document });
-    this.#cues = new PhaseCues({ window, navigator: window.navigator, document,
-      onVibrationBlocked: () => this.#notify('vibration was blocked. check your browser and phone settings.'),
-    });
+    this.#cues = new PhaseCues({ window, document });
     this.#session = new SessionDriver({ engine,
       raf: window.requestAnimationFrame.bind(window), caf: window.cancelAnimationFrame.bind(window),
       onChange: (snapshot) => {
@@ -130,35 +128,77 @@ export class BreathingApp {
     this.#document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && this.#zenMode) this.#navigation.leave();
     });
-    // Quick choices and number fields share delegated timing handlers.
+    for (const phase of PHASES) {
+      const picker = ui[`${phase}-picker`];
+      picker.addEventListener('toggle', () => {
+        const open = picker.matches(':popover-open');
+        ui[`${phase}-value`].setAttribute('aria-expanded', String(open));
+        if (!open) this.#editor.flush();
+      });
+    }
+    this.#document.addEventListener('scroll', () => this.#closeDurationPickers(), true);
+    this.#window.addEventListener('resize', () => this.#closeDurationPickers());
+    ui['timing-fields'].addEventListener('pointerdown', ({ target }) => {
+      if (target.type === 'range') target.focus({ preventScroll: true });
+    });
+    // Seconds buttons open a top-layer picker; only the slider and quick choices edit time.
     ui['timing-fields'].addEventListener('click', ({ target }) => {
+      const trigger = target.closest('.duration-button');
+      if (trigger) {
+        if (this.#session.snapshot.status === 'idle') this.#openDurationPicker(trigger.dataset.field);
+        return;
+      }
       const choice = target.closest('.time-choice');
       if (!choice) return;
       this.#setField(choice.dataset.field, Number(choice.dataset.value));
       this.#editor.flush();
     });
     ui['timing-fields'].addEventListener('input', ({ target }) => {
-      if (target.validity.valid) this.#setField(target.dataset.field, target.valueAsNumber);
+      if (target.type === 'range') this.#setField(target.dataset.field, target.valueAsNumber);
     });
     ui['timing-fields'].addEventListener('change', ({ target }) => {
-      if (target.type === 'number') {
-        const value = Number.isFinite(target.valueAsNumber)
-          ? Math.min(Number(target.max), Math.max(Number(target.min), Math.round(target.valueAsNumber)))
-          : this.#config[target.dataset.field];
-        this.#setField(target.dataset.field, value);
-      }
+      if (target.type !== 'range') return;
+      this.#setField(target.dataset.field, target.valueAsNumber);
       this.#editor.flush();
     });
 
     // Preset selection is locked for the duration of an exercise.
     for (const control of [ui['preset-tiles'], ui['preset-selector']]) {
       control.addEventListener('change', ({ target }) => {
-        this.#editor.select(target.value);
+        if (this.#session.snapshot.status !== 'idle') return;
+        this.#closeDurationPickers();
+        const adding = control === ui['preset-selector'] && target.value === 'add-preset';
+        if (adding) {
+          this.#editor.add();
+          this.#populatePresets();
+        } else this.#editor.select(target.value);
         this.#syncSettings();
         this.#render(this.#session.snapshot);
-        ui['phase-announcement'].textContent = `${this.#editor.selected.name.toLowerCase()} selected.`;
+        ui['phase-announcement'].textContent = `${this.#editor.selected.name.toLowerCase()} ${adding ? 'added' : 'selected'}.`;
+        if (adding) {
+          ui['preset-name'].focus();
+          ui['preset-name'].select();
+        }
       });
     }
+
+    ui['delete-preset'].addEventListener('click', () => {
+      if (this.#session.snapshot.status !== 'idle' || this.#presets.length <= 2) return;
+      const name = this.#editor.selected.name;
+      try {
+        if (!this.#editor.remove()) return;
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        this.#refreshPresets();
+        this.#notify(error.message);
+        return;
+      }
+      this.#populatePresets();
+      this.#syncSettings();
+      this.#render(this.#session.snapshot);
+      ui['preset-selector'].focus();
+      this.#notify(`${name.toLowerCase()} removed.`);
+    });
 
     this.#document.addEventListener('visibilitychange', () => {
       if (!this.#document.hidden) return;
@@ -205,6 +245,7 @@ export class BreathingApp {
   }
 
   #refreshPresets() {
+    this.#closeDurationPickers();
     if (!this.#editor.refresh()) return;
     this.#presetsChanged = false;
     this.#populatePresets();
@@ -219,6 +260,33 @@ export class BreathingApp {
     this.#render(this.#session.snapshot);
   }
 
+  #openDurationPicker(phase) {
+    const trigger = this.#elements[`${phase}-value`];
+    const picker = this.#elements[`${phase}-picker`];
+    if (picker.matches(':popover-open')) {
+      picker.hidePopover();
+      return;
+    }
+    trigger.focus({ preventScroll: true });
+    picker.showPopover();
+    const anchor = trigger.getBoundingClientRect();
+    const viewport = this.#window.visualViewport;
+    const left = viewport?.offsetLeft ?? 0;
+    const top = viewport?.offsetTop ?? 0;
+    const width = viewport?.width ?? this.#window.innerWidth;
+    const height = viewport?.height ?? this.#window.innerHeight;
+    picker.style.left = `${Math.max(left + 8, Math.min(anchor.left + anchor.width / 2 - picker.offsetWidth / 2, left + width - picker.offsetWidth - 8))}px`;
+    picker.style.top = `${Math.max(top + 8, Math.min(anchor.top + anchor.height / 2 - picker.offsetHeight / 2, top + height - picker.offsetHeight - 8))}px`;
+    this.#elements[`${phase}-slider`].focus({ preventScroll: true });
+  }
+
+  #closeDurationPickers() {
+    for (const phase of PHASES) {
+      const picker = this.#elements[`${phase}-picker`];
+      if (picker.matches(':popover-open')) picker.hidePopover();
+    }
+  }
+
   #syncSettings() {
     const ui = this.#elements;
     ui['preset-name'].value = this.#editor.selected.name;
@@ -226,6 +294,13 @@ export class BreathingApp {
     for (const field of PHASES) {
       const value = this.#config[field];
       ui[`${field}-value`].value = value;
+      ui[`${field}-value`].closest('.timing-field').classList.toggle('is-off', value === 0);
+      const duration = value === 0 ? 'off' : `${value}s`;
+      ui[`${field}-value`].textContent = duration;
+      ui[`${field}-value`].setAttribute('aria-label', `adjust ${field === 'holdIn' ? 'hold after inhale' : field === 'holdOut' ? 'hold after exhale' : field} duration, ${value === 0 ? 'off' : `${value} seconds`}`);
+      ui[`${field}-picked-value`].value = duration;
+      ui[`${field}-slider`].value = value;
+      ui[`${field}-slider`].setAttribute('aria-valuetext', value === 0 ? 'off' : `${value} seconds`);
       ui[`track-${field}`].textContent = value === 0 ? 'off' : `${value}s`;
       const phaseStep = ui['phase-track'].querySelector(`[data-phase="${field}"]`);
       phaseStep.classList.toggle('is-skipped', value === 0);
@@ -235,11 +310,12 @@ export class BreathingApp {
         button.setAttribute('aria-pressed', String(Number(button.dataset.value) === value));
       }
     }
+    ui['hold-feedback-fields'].disabled = this.#config.holdIn === 0 && this.#config.holdOut === 0;
     this.#syncPresetControls();
   }
 
   #populatePresets() {
-    const tiles = this.#presets.slice(0, 4).map((preset) => {
+    const tiles = this.#presets.map((preset) => {
       const tile = this.#document.createElement('label');
       tile.className = 'preset-tile';
       tile.dataset.preset = preset.id;
@@ -256,6 +332,8 @@ export class BreathingApp {
     this.#elements['preset-tiles'].replaceChildren(...tiles);
     const options = this.#presets.map((preset) => Object.assign(this.#document.createElement('option'),
       { value: preset.id, textContent: preset.name.toLowerCase() }));
+    options.push(Object.assign(this.#document.createElement('option'),
+      { value: 'add-preset', textContent: 'add preset' }));
     this.#elements['preset-selector'].replaceChildren(...options);
   }
 
@@ -272,17 +350,18 @@ export class BreathingApp {
     }
     const selector = this.#elements['preset-selector'];
     for (const option of selector.options) {
+      if (option.value === 'add-preset') continue;
       option.textContent = presets.find((preset) => preset.id === option.value).name.toLowerCase();
     }
     selector.value = this.#editor.selected.id;
+    this.#elements['delete-preset'].disabled = presets.length <= 2;
+    this.#elements['delete-preset'].title = presets.length <= 2 ? 'keep at least two presets' : 'delete selected preset';
+    this.#elements['delete-preset'].setAttribute('aria-label', `delete ${this.#editor.selected.name.toLowerCase()}`);
   }
 
   #setPreference(key, value) {
     this.#preferences[key] = value;
     this.#syncPreferences();
-    if (key === 'vibration' && value && this.#cues.previewVibration()) {
-      this.#notify('no vibration? switch your phone from silent to ring or vibrate.');
-    }
     try {
       this.#store.savePreferences(this.#preferences);
     } catch (error) {
@@ -303,10 +382,9 @@ export class BreathingApp {
       this.#elements[id].checked = this.#preferences[preference];
     }
     this.#cues.configure(this.#preferences);
-    for (const [id, supported] of [['sound-cue', this.#cues.soundSupported], ['vibration', this.#cues.vibrationSupported]]) {
-      this.#elements[id].disabled = !supported;
-      this.#elements[id].parentElement.title = supported ? '' : 'unavailable in this browser';
-    }
+    this.#elements['phase-track'].setAttribute('aria-hidden', String(!this.#preferences.showPhaseTimings));
+    this.#elements['sound-cue'].disabled = !this.#cues.soundSupported;
+    this.#elements['sound-cue'].parentElement.title = this.#cues.soundSupported ? '' : 'unavailable in this browser';
     const { holdFeedback } = this.#preferences;
     this.#elements['breathing-visual'].dataset.holdFeedback = holdFeedback;
     this.#elements['hold-choices'].querySelector(`input[value="${holdFeedback}"]`).checked = true;
@@ -332,6 +410,7 @@ export class BreathingApp {
   }
 
   #toggleSession() {
+    this.#closeDurationPickers();
     const status = this.#session.snapshot.status;
     if (status === 'running') {
       this.#navigation.leave();
@@ -384,8 +463,7 @@ export class BreathingApp {
       holdFill.style.animationName = '';
 
       for (const step of ui['phase-track'].children) {
-        const selected = step.dataset.phase === (phase ?? 'inhale');
-        step.classList.toggle('is-active', selected);
+        const selected = active && step.dataset.phase === phase;
         if (selected) step.setAttribute('aria-current', 'step');
         else step.removeAttribute('aria-current');
       }

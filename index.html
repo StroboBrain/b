@@ -22,14 +22,16 @@
         <h1 class="sr-only">breathing exercise</h1>
         <div class="practice-layout">
           <section id="practice" class="practice-card" aria-label="breathing exercise" tabindex="-1">
-            <button id="zen-back" class="button button-outline" type="button" aria-label="stop exercise and return to setup" hidden><svg class="back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-2"/></svg></button>
+            <button id="zen-back" class="button button-outline" type="button" aria-label="stop exercise and return to setup" hidden>
+              <svg class="line-icon back-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-2"/></svg>
+            </button>
 
             <div id="breathing-visual" class="breathing-visual" data-state="idle" data-phase="inhale" data-hold-feedback="rise" aria-hidden="true">
               <div id="breathing-orb" class="breathing-orb">
                 <div class="hold-feedback"><div id="hold-fill" class="hold-fill"></div></div>
               </div>
-              <svg class="breath-guide breath-guide-min" focusable="false"><circle cx="50%" cy="50%" r="50%"/></svg>
-              <svg class="breath-guide breath-guide-max" focusable="false"><circle cx="50%" cy="50%" r="50%"/></svg>
+              <svg class="breath-guide breath-guide-min" focusable="false"><circle/></svg>
+              <svg class="breath-guide breath-guide-max" focusable="false"><circle/></svg>
               <div class="orb-copy">
                 <span id="phase-caption" class="phase-caption">inhale</span>
                 <span id="phase-count" class="phase-count">4</span>
@@ -38,7 +40,7 @@
 
             <p id="phase-announcement" class="sr-only" role="status"></p>
             <ol id="phase-track" class="phase-track" aria-label="breathing sequence">
-              <li class="phase-step is-active" data-phase="inhale"><span class="phase-dot" aria-hidden="true"></span><span>inhale</span><span class="phase-time" id="track-inhale">4s</span></li>
+              <li class="phase-step" data-phase="inhale"><span class="phase-dot" aria-hidden="true"></span><span>inhale</span><span class="phase-time" id="track-inhale">4s</span></li>
               <li class="phase-step" data-phase="holdIn"><span class="phase-dot" aria-hidden="true"></span><span>hold</span><span class="phase-time" id="track-holdIn">4s</span></li>
               <li class="phase-step" data-phase="exhale"><span class="phase-dot" aria-hidden="true"></span><span>exhale</span><span class="phase-time" id="track-exhale">4s</span></li>
               <li class="phase-step" data-phase="holdOut"><span class="phase-dot" aria-hidden="true"></span><span>hold</span><span class="phase-time" id="track-holdOut">4s</span></li>
@@ -49,88 +51,149 @@
               <legend>presets</legend>
               <div id="preset-tiles" class="preset-tiles" role="radiogroup" aria-label="breathing presets"></div>
             </fieldset>
-            <div class="display-controls" role="group" aria-label="breathing display">
-              <label class="display-toggle"><input id="show-breath-text" class="toggle-mark" type="checkbox" checked>show text</label>
-              <label class="display-toggle"><input id="show-breath-guides" class="toggle-mark" type="checkbox" checked>show guides</label>
-              <label class="display-toggle"><input id="show-breath-numbers" class="toggle-mark" type="checkbox" checked>show time</label>
-              <label class="display-toggle"><input id="fade-buttons" class="toggle-mark" type="checkbox">fade buttons</label>
-            </div>
-            <div class="cue-controls" role="group" aria-label="phase cues">
-              <label class="display-toggle"><input id="sound-cue" class="toggle-mark" type="checkbox">sound cue</label>
-              <label class="display-toggle"><input id="vibration" class="toggle-mark" type="checkbox">vibration</label>
-            </div>
-            <section class="hold-options" aria-labelledby="hold-feedback-heading">
-              <h2 id="hold-feedback-heading">hold feedback</h2>
-              <div id="hold-choices" class="hold-choices" role="radiogroup" aria-labelledby="hold-feedback-heading">
-                <label class="hold-choice" data-hold-feedback="rise" title="fill from the bottom"><input class="sr-only" type="radio" name="hold-feedback" value="rise" checked><span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span><span>rise</span></label>
-                <label class="hold-choice" data-hold-feedback="sweep" title="fill clockwise"><input class="sr-only" type="radio" name="hold-feedback" value="sweep"><span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span><span>sweep</span></label>
-                <label class="hold-choice" data-hold-feedback="spread" title="fill from the center"><input class="sr-only" type="radio" name="hold-feedback" value="spread"><span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span><span>spread</span></label>
-                <label class="hold-choice" data-hold-feedback="fade" title="brighten the whole circle"><input class="sr-only" type="radio" name="hold-feedback" value="fade"><span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span><span>fade</span></label>
+            <fieldset class="display-options">
+              <legend>display</legend>
+              <div class="display-controls">
+                <label class="display-toggle"><input id="show-breath-text" class="toggle-mark" type="checkbox" checked>text</label>
+                <label class="display-toggle"><input id="show-breath-guides" class="toggle-mark" type="checkbox" checked>guides</label>
+                <label class="display-toggle"><input id="show-breath-numbers" class="toggle-mark" type="checkbox" checked>time</label>
+                <label class="display-toggle"><input id="show-phase-timings" class="toggle-mark" type="checkbox" checked>timings</label>
+                <label class="display-toggle"><input id="fade-buttons" class="toggle-mark" type="checkbox">fade buttons</label>
+                <label class="display-toggle"><input id="sound-cue" class="toggle-mark" type="checkbox">sound cue</label>
               </div>
-            </section>
+            </fieldset>
+            <fieldset id="hold-feedback-fields" class="hold-options">
+              <legend id="hold-feedback-heading">hold feedback<span class="hold-empty-note label-detail"> (no hold selected)</span></legend>
+              <div id="hold-choices" class="hold-choices" role="radiogroup" aria-labelledby="hold-feedback-heading">
+                <label class="hold-choice" data-hold-feedback="rise" title="fill from the bottom">
+                  <input class="sr-only" type="radio" name="hold-feedback" value="rise" checked>
+                  <span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span>
+                  <span>rise</span>
+                </label>
+                <label class="hold-choice" data-hold-feedback="sweep" title="fill clockwise">
+                  <input class="sr-only" type="radio" name="hold-feedback" value="sweep">
+                  <span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span>
+                  <span>sweep</span>
+                </label>
+                <label class="hold-choice" data-hold-feedback="spread" title="fill from the center">
+                  <input class="sr-only" type="radio" name="hold-feedback" value="spread">
+                  <span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span>
+                  <span>spread</span>
+                </label>
+                <label class="hold-choice" data-hold-feedback="fade" title="brighten the whole circle">
+                  <input class="sr-only" type="radio" name="hold-feedback" value="fade">
+                  <span class="hold-sample" aria-hidden="true"><span class="hold-fill"></span></span>
+                  <span>fade</span>
+                </label>
+              </div>
+            </fieldset>
           </section>
 
-          <section class="settings-card" aria-labelledby="settings-heading">
-            <h2 id="settings-heading">customize presets</h2>
+          <fieldset class="settings-card">
+            <legend id="settings-heading">customize presets</legend>
             <form id="settings-form">
               <fieldset id="settings-fields">
                 <legend class="sr-only">preset settings</legend>
                 <div class="preset-field">
                   <label for="preset-selector">edit preset</label>
-                  <select id="preset-selector" name="preset"></select>
+                  <div class="preset-select-row">
+                    <select id="preset-selector" name="preset"></select>
+                    <button id="delete-preset" class="button button-outline delete-preset" type="button" aria-label="delete selected preset" title="delete selected preset">
+                      <svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="preset-field">
                   <label for="preset-name">preset name</label>
                   <input id="preset-name" type="text" autocapitalize="none" maxlength="32" required autocomplete="off" value="box breathing">
                 </div>
 
-                <h3 id="timing-heading" class="timing-heading">timing</h3>
-                <fieldset id="timing-fields" class="timing-fields" aria-labelledby="timing-heading">
-                  <div class="timing-field">
-                    <div class="timing-label"><label for="inhale-value">inhale</label><div class="number-field"><input id="inhale-value" data-field="inhale" name="inhale" type="number" inputmode="numeric" min="1" max="60" step="1" value="4" required aria-label="inhale duration in seconds"><span aria-hidden="true">s</span></div></div>
+                <div id="timing-fields" class="timing-fields">
+                  <fieldset class="timing-field" aria-labelledby="inhale-label">
+                    <legend id="inhale-label" class="phase-title">inhale</legend>
+                    <div class="timing-label">
+                      <button id="inhale-value" class="duration-button" type="button" data-field="inhale" value="4" aria-haspopup="dialog" aria-controls="inhale-picker" aria-expanded="false" aria-label="adjust inhale duration, 4 seconds">4s</button>
+                    </div>
                     <div class="time-choices" role="group" aria-label="quick inhale duration in seconds">
                       <button class="time-choice" type="button" data-field="inhale" data-value="2" aria-pressed="false">2s</button>
                       <button class="time-choice" type="button" data-field="inhale" data-value="4" aria-pressed="true">4s</button>
                       <button class="time-choice" type="button" data-field="inhale" data-value="5" aria-pressed="false">5s</button>
                       <button class="time-choice" type="button" data-field="inhale" data-value="6" aria-pressed="false">6s</button>
                       <button class="time-choice" type="button" data-field="inhale" data-value="8" aria-pressed="false">8s</button>
+                      <button class="time-choice" type="button" data-field="inhale" data-value="10" aria-pressed="false">10s</button>
                     </div>
-                  </div>
-                  <div class="timing-field">
-                    <div class="timing-label"><label for="holdIn-value">hold <span class="label-detail">after inhale</span></label><div class="number-field"><input id="holdIn-value" data-field="holdIn" name="holdIn" type="number" inputmode="numeric" min="0" max="60" step="1" value="4" required aria-label="hold after inhale in seconds"><span aria-hidden="true">s</span></div></div>
+                    <div id="inhale-picker" class="duration-picker" popover="auto" role="dialog" aria-label="inhale duration">
+                      <span class="picker-heading">inhale</span>
+                      <output id="inhale-picked-value" class="picker-value" for="inhale-slider">4s</output>
+                      <input id="inhale-slider" class="duration-slider" type="range" data-field="inhale" min="1" max="60" step="1" value="4" aria-label="inhale duration in seconds" aria-orientation="vertical">
+                      <button class="button button-outline picker-done" type="button" popovertarget="inhale-picker" popovertargetaction="hide">done</button>
+                    </div>
+                  </fieldset>
+                  <fieldset class="timing-field" aria-labelledby="holdIn-label">
+                    <legend id="holdIn-label" class="phase-title">hold <span class="label-detail">after inhale</span></legend>
+                    <div class="timing-label">
+                      <button id="holdIn-value" class="duration-button" type="button" data-field="holdIn" value="4" aria-haspopup="dialog" aria-controls="holdIn-picker" aria-expanded="false" aria-label="adjust hold after inhale duration, 4 seconds">4s</button>
+                    </div>
                     <div class="time-choices" role="group" aria-label="quick hold after inhale duration in seconds">
                       <button class="time-choice" type="button" data-field="holdIn" data-value="0" aria-pressed="false">off</button>
                       <button class="time-choice" type="button" data-field="holdIn" data-value="2" aria-pressed="false">2s</button>
                       <button class="time-choice" type="button" data-field="holdIn" data-value="4" aria-pressed="true">4s</button>
                       <button class="time-choice" type="button" data-field="holdIn" data-value="7" aria-pressed="false">7s</button>
                       <button class="time-choice" type="button" data-field="holdIn" data-value="10" aria-pressed="false">10s</button>
+                      <button class="time-choice" type="button" data-field="holdIn" data-value="15" aria-pressed="false">15s</button>
                     </div>
-                  </div>
-                  <div class="timing-field">
-                    <div class="timing-label"><label for="exhale-value">exhale</label><div class="number-field"><input id="exhale-value" data-field="exhale" name="exhale" type="number" inputmode="numeric" min="1" max="60" step="1" value="4" required aria-label="exhale duration in seconds"><span aria-hidden="true">s</span></div></div>
+                    <div id="holdIn-picker" class="duration-picker" popover="auto" role="dialog" aria-label="hold after inhale duration">
+                      <span class="picker-heading">hold after inhale</span>
+                      <output id="holdIn-picked-value" class="picker-value" for="holdIn-slider">4s</output>
+                      <input id="holdIn-slider" class="duration-slider" type="range" data-field="holdIn" min="0" max="60" step="1" value="4" aria-label="hold after inhale duration in seconds" aria-orientation="vertical">
+                      <button class="button button-outline picker-done" type="button" popovertarget="holdIn-picker" popovertargetaction="hide">done</button>
+                    </div>
+                  </fieldset>
+                  <fieldset class="timing-field" aria-labelledby="exhale-label">
+                    <legend id="exhale-label" class="phase-title">exhale</legend>
+                    <div class="timing-label">
+                      <button id="exhale-value" class="duration-button" type="button" data-field="exhale" value="4" aria-haspopup="dialog" aria-controls="exhale-picker" aria-expanded="false" aria-label="adjust exhale duration, 4 seconds">4s</button>
+                    </div>
                     <div class="time-choices" role="group" aria-label="quick exhale duration in seconds">
                       <button class="time-choice" type="button" data-field="exhale" data-value="2" aria-pressed="false">2s</button>
                       <button class="time-choice" type="button" data-field="exhale" data-value="4" aria-pressed="true">4s</button>
                       <button class="time-choice" type="button" data-field="exhale" data-value="5" aria-pressed="false">5s</button>
                       <button class="time-choice" type="button" data-field="exhale" data-value="6" aria-pressed="false">6s</button>
                       <button class="time-choice" type="button" data-field="exhale" data-value="8" aria-pressed="false">8s</button>
+                      <button class="time-choice" type="button" data-field="exhale" data-value="10" aria-pressed="false">10s</button>
                     </div>
-                  </div>
-                  <div class="timing-field">
-                    <div class="timing-label"><label for="holdOut-value">hold <span class="label-detail">after exhale</span></label><div class="number-field"><input id="holdOut-value" data-field="holdOut" name="holdOut" type="number" inputmode="numeric" min="0" max="60" step="1" value="4" required aria-label="hold after exhale in seconds"><span aria-hidden="true">s</span></div></div>
+                    <div id="exhale-picker" class="duration-picker" popover="auto" role="dialog" aria-label="exhale duration">
+                      <span class="picker-heading">exhale</span>
+                      <output id="exhale-picked-value" class="picker-value" for="exhale-slider">4s</output>
+                      <input id="exhale-slider" class="duration-slider" type="range" data-field="exhale" min="1" max="60" step="1" value="4" aria-label="exhale duration in seconds" aria-orientation="vertical">
+                      <button class="button button-outline picker-done" type="button" popovertarget="exhale-picker" popovertargetaction="hide">done</button>
+                    </div>
+                  </fieldset>
+                  <fieldset class="timing-field" aria-labelledby="holdOut-label">
+                    <legend id="holdOut-label" class="phase-title">hold <span class="label-detail">after exhale</span></legend>
+                    <div class="timing-label">
+                      <button id="holdOut-value" class="duration-button" type="button" data-field="holdOut" value="4" aria-haspopup="dialog" aria-controls="holdOut-picker" aria-expanded="false" aria-label="adjust hold after exhale duration, 4 seconds">4s</button>
+                    </div>
                     <div class="time-choices" role="group" aria-label="quick hold after exhale duration in seconds">
                       <button class="time-choice" type="button" data-field="holdOut" data-value="0" aria-pressed="false">off</button>
                       <button class="time-choice" type="button" data-field="holdOut" data-value="2" aria-pressed="false">2s</button>
                       <button class="time-choice" type="button" data-field="holdOut" data-value="4" aria-pressed="true">4s</button>
                       <button class="time-choice" type="button" data-field="holdOut" data-value="7" aria-pressed="false">7s</button>
                       <button class="time-choice" type="button" data-field="holdOut" data-value="10" aria-pressed="false">10s</button>
+                      <button class="time-choice" type="button" data-field="holdOut" data-value="15" aria-pressed="false">15s</button>
                     </div>
-                  </div>
-                </fieldset>
+                    <div id="holdOut-picker" class="duration-picker" popover="auto" role="dialog" aria-label="hold after exhale duration">
+                      <span class="picker-heading">hold after exhale</span>
+                      <output id="holdOut-picked-value" class="picker-value" for="holdOut-slider">4s</output>
+                      <input id="holdOut-slider" class="duration-slider" type="range" data-field="holdOut" min="0" max="60" step="1" value="4" aria-label="hold after exhale duration in seconds" aria-orientation="vertical">
+                      <button class="button button-outline picker-done" type="button" popovertarget="holdOut-picker" popovertargetaction="hide">done</button>
+                    </div>
+                  </fieldset>
+                </div>
               </fieldset>
             </form>
             <p id="settings-note" class="settings-note"></p>
-          </section>
+          </fieldset>
         </div>
         <noscript><p class="noscript-message">enable javascript to customize and start your breathing practice.</p></noscript>
       </main>
