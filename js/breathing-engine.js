@@ -37,14 +37,14 @@ export function configsEqual(left, right) {
  * @throws {RangeError} If a field is not an integer within its permitted range.
  */
 export function validateConfig(config) {
-  if (config === null || typeof config !== "object" || Array.isArray(config)) {
-    throw new TypeError("A breathing configuration must be an object.");
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+    throw new TypeError('A breathing configuration must be an object.');
   }
 
   const normalized = /** @type {BreathingConfig} */ ({});
   for (const [field, [minimum, maximum]] of Object.entries(CONFIG_LIMITS)) {
     const value = config[field];
-    if (typeof value !== "number") {
+    if (typeof value !== 'number') {
       throw new TypeError(`${field} must be a number.`);
     }
     if (!Number.isInteger(value) || value < minimum || value > maximum) {
@@ -57,8 +57,8 @@ export function validateConfig(config) {
 
 /**
  * @typedef {Object} BreathingSnapshot
- * @property {"idle"|"running"|"paused"} status
- * @property {"inhale"|"holdIn"|"exhale"|"holdOut"|null} phase
+ * @property {'idle'|'running'|'paused'} status
+ * @property {'inhale'|'holdIn'|'exhale'|'holdOut'|null} phase
  * @property {number} phaseDurationMs
  * @property {number} phaseElapsedMs
  * @property {number} phaseRemainingMs
@@ -78,8 +78,8 @@ export function validateConfig(config) {
 export class BreathingEngine {
   #now;
   #phases = [];
-  /** @type {BreathingSnapshot["status"]} */
-  #status = "idle";
+  /** @type {BreathingSnapshot['status']} */
+  #status = 'idle';
   #cycleDurationMs = 0;
   #elapsedMs = 0;
   #elapsedBeforeRun = 0;
@@ -87,8 +87,8 @@ export class BreathingEngine {
 
   /** @param {{now?: () => number}} [options] A monotonic clock in milliseconds. */
   constructor({ now = () => performance.now() } = {}) {
-    if (typeof now !== "function") {
-      throw new TypeError("The clock must be a function.");
+    if (typeof now !== 'function') {
+      throw new TypeError('The clock must be a function.');
     }
     this.#now = now;
   }
@@ -110,13 +110,13 @@ export class BreathingEngine {
     this.#elapsedMs = 0;
     this.#elapsedBeforeRun = 0;
     this.#runningSince = startedAt;
-    this.#status = "running";
+    this.#status = 'running';
     return this.getSnapshot();
   }
 
   /** @returns {BreathingSnapshot} Advance directly to the current clock time. */
   tick() {
-    if (this.#status === "running") {
+    if (this.#status === 'running') {
       const elapsed = this.#elapsedBeforeRun + this.#readClock() - this.#runningSince;
       this.#elapsedMs = Math.max(this.#elapsedMs, elapsed);
     }
@@ -125,19 +125,19 @@ export class BreathingEngine {
 
   /** @returns {BreathingSnapshot} Capture elapsed time and pause an active session. */
   pause() {
-    if (this.#status === "running") {
+    if (this.#status === 'running') {
       this.tick();
       this.#elapsedBeforeRun = this.#elapsedMs;
-      this.#status = "paused";
+      this.#status = 'paused';
     }
     return this.getSnapshot();
   }
 
   /** @returns {BreathingSnapshot} Resume a paused session without counting paused time. */
   resume() {
-    if (this.#status === "paused") {
+    if (this.#status === 'paused') {
       this.#runningSince = this.#readClock();
-      this.#status = "running";
+      this.#status = 'running';
     }
     return this.getSnapshot();
   }
@@ -145,7 +145,7 @@ export class BreathingEngine {
   /** @returns {BreathingSnapshot} Return to the initial idle state. */
   reset() {
     this.#phases = [];
-    this.#status = "idle";
+    this.#status = 'idle';
     this.#cycleDurationMs = 0;
     this.#elapsedMs = 0;
     this.#elapsedBeforeRun = 0;
@@ -165,7 +165,7 @@ export class BreathingEngine {
       sessionElapsedMs: this.#elapsedMs,
     };
 
-    if (this.#status === "running" || this.#status === "paused") {
+    if (this.#status === 'running' || this.#status === 'paused') {
       let phaseElapsedMs = this.#elapsedMs % this.#cycleDurationMs;
       for (const phase of this.#phases) {
         if (phaseElapsedMs < phase.durationMs) {
@@ -184,8 +184,8 @@ export class BreathingEngine {
 
   #readClock() {
     const now = this.#now();
-    if (typeof now !== "number" || !Number.isFinite(now)) {
-      throw new TypeError("The clock must return a finite number of milliseconds.");
+    if (typeof now !== 'number' || !Number.isFinite(now)) {
+      throw new TypeError('The clock must return a finite number of milliseconds.');
     }
     return now;
   }

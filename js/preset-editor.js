@@ -11,10 +11,19 @@ export class PresetEditor {
   #selectedId;
   #dirty = new Set();
   #selectionDirty = false;
+  #crypto;
 
-  constructor({ store, onStorageError }) {
+  constructor({ store, onStorageError, crypto = globalThis.crypto } = {}) {
+    for (const method of ['listPresets', 'loadSelection', 'savePreset', 'deletePreset', 'saveSelection']) {
+      if (typeof store?.[method] !== 'function') throw new TypeError(`The preset store must provide ${method}().`);
+    }
+    if (typeof onStorageError !== 'function') throw new TypeError('onStorageError must be a function.');
+    if (typeof crypto?.randomUUID !== 'function' && typeof crypto?.getRandomValues !== 'function') {
+      throw new TypeError('Crypto must provide randomUUID() or getRandomValues().');
+    }
     this.#store = store;
     this.#onStorageError = onStorageError;
+    this.#crypto = crypto;
     this.#presets = store.listPresets();
     const selection = store.loadSelection();
     this.#selectedId = this.#presets.find((preset) => preset.id === selection)?.id ?? this.#presets[0].id;
@@ -30,7 +39,7 @@ export class PresetEditor {
     for (let suffix = 2; this.#presets.some((preset) => preset.name.toLowerCase() === name.toLowerCase()); suffix++) {
       name = `New preset ${suffix}`;
     }
-    const preset = { id: `preset-${globalThis.crypto.randomUUID()}`, name, config: { ...DEFAULT_CONFIG } };
+    const preset = { id: `preset-${this.#createUuid()}`, name, config: { ...DEFAULT_CONFIG } };
     this.#presets.push(preset);
     this.#selectedId = preset.id;
     this.#dirty.add(preset.id);
@@ -98,6 +107,17 @@ export class PresetEditor {
     if (!this.#persist(() => this.#store.saveSelection(this.#selectedId))) return false;
     this.#selectionDirty = false;
     return true;
+  }
+
+  /** getRandomValues remains available when HTTP does not expose randomUUID. */
+  #createUuid() {
+    if (typeof this.#crypto.randomUUID === 'function') return this.#crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    this.#crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
   #persist(operation) {

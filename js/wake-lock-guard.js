@@ -6,7 +6,12 @@ export class WakeLockGuard {
   #request = null;
   #wanted = false;
 
-  constructor({ navigator, document }) {
+  constructor({ navigator, document } = {}) {
+    if (!navigator || typeof navigator !== 'object') throw new TypeError('A navigator object is required.');
+    if (!document || typeof document.hidden !== 'boolean') throw new TypeError('The document must provide a hidden boolean.');
+    if (navigator.wakeLock != null && typeof navigator.wakeLock.request !== 'function') {
+      throw new TypeError('Wake lock support must provide request().');
+    }
     this.#navigator = navigator;
     this.#document = document;
   }

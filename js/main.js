@@ -1,6 +1,8 @@
 import { BreathingApp } from './app.js';
+import { ViewportLayout } from './viewport-layout.js';
 
 try {
+  new ViewportLayout();
   new BreathingApp();
 } catch (error) {
   // A broken build must not leave a silently disabled Start button.

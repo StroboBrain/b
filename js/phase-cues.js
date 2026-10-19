@@ -14,6 +14,11 @@ export class PhaseCues {
   #phaseKey = '';
 
   constructor({ window = globalThis.window, document = globalThis.document } = {}) {
+    if (!window || typeof window !== 'object') throw new TypeError('A window object is required.');
+    if (!document || typeof document.hidden !== 'boolean') throw new TypeError('The document must provide a hidden boolean.');
+    if (window.AudioContext != null && typeof window.AudioContext !== 'function') {
+      throw new TypeError('AudioContext must be a constructor when supported.');
+    }
     this.#AudioContext = window?.AudioContext;
     this.#document = document;
   }
@@ -22,6 +27,7 @@ export class PhaseCues {
 
   /** @param {{soundCue: boolean}} preferences */
   configure({ soundCue }) {
+    if (typeof soundCue !== 'boolean') throw new TypeError('soundCue must be a boolean.');
     this.#sound = soundCue;
     if (!soundCue) this.#closeAudio();
   }
@@ -50,6 +56,17 @@ export class PhaseCues {
 
   /** @param {import('./breathing-engine.js').BreathingSnapshot} snapshot */
   update(snapshot) {
+    if (!snapshot || !['idle', 'running', 'paused'].includes(snapshot.status)) {
+      throw new TypeError('A breathing snapshot must have an idle, running or paused status.');
+    }
+    if (snapshot.status !== 'idle') {
+      if (!Object.hasOwn(FREQUENCIES, snapshot.phase)) throw new TypeError('An active snapshot must name a breathing phase.');
+      for (const field of ['phaseStartedAtMs', 'phaseElapsedMs']) {
+        if (typeof snapshot[field] !== 'number' || !Number.isFinite(snapshot[field]) || snapshot[field] < 0) {
+          throw new TypeError(`${field} must be a non-negative finite number.`);
+        }
+      }
+    }
     if (snapshot.status === 'idle') this.#phaseKey = '';
     if (snapshot.status !== 'running' || this.#document?.hidden) {
       this.stop();

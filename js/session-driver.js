@@ -1,15 +1,23 @@
-/** Owns one frame loop. Pausing captures time; stopped/paused sessions schedule no frames. */
+/** Updates countdowns and phase boundaries; CSS owns continuous visual motion.
+ * Paused and stopped sessions schedule no work. Delayed timers catch up to the clock.
+ */
 export class SessionDriver {
   #engine;
-  #raf;
-  #caf;
+  #setTimeout;
+  #clearTimeout;
   #onChange;
-  #frame = null;
+  #timer = null;
 
-  constructor({ engine, raf, caf, onChange }) {
+  constructor({ engine, setTimeout = globalThis.setTimeout, clearTimeout = globalThis.clearTimeout, onChange } = {}) {
+    for (const method of ['getSnapshot', 'start', 'resume', 'pause', 'reset', 'tick']) {
+      if (typeof engine?.[method] !== 'function') throw new TypeError(`The session engine must provide ${method}().`);
+    }
+    if (typeof setTimeout !== 'function') throw new TypeError('setTimeout must be a function.');
+    if (typeof clearTimeout !== 'function') throw new TypeError('clearTimeout must be a function.');
+    if (typeof onChange !== 'function') throw new TypeError('onChange must be a function.');
     this.#engine = engine;
-    this.#raf = raf;
-    this.#caf = caf;
+    this.#setTimeout = setTimeout;
+    this.#clearTimeout = clearTimeout;
     this.#onChange = onChange;
   }
 
@@ -21,18 +29,22 @@ export class SessionDriver {
   stop() { this.#update(this.#engine.reset()); }
 
   #update(snapshot) {
-    if (this.#frame !== null) this.#caf(this.#frame);
-    this.#frame = null;
+    if (this.#timer !== null) this.#clearTimeout(this.#timer);
+    this.#timer = null;
     this.#onChange(snapshot);
     this.#schedule();
   }
 
   #schedule() {
-    if (this.snapshot.status !== 'running' || this.#frame !== null) return;
-    this.#frame = this.#raf(() => {
-      this.#frame = null;
+    const snapshot = this.snapshot;
+    if (snapshot.status !== 'running' || this.#timer !== null) return;
+    const nextCountMs = snapshot.phaseRemainingMs % 1000 || 1000;
+    // Round up so timer precision cannot produce a tight loop just before a boundary.
+    const delay = Math.max(1, Math.ceil(Math.min(nextCountMs, snapshot.phaseRemainingMs)));
+    this.#timer = this.#setTimeout(() => {
+      this.#timer = null;
       this.#onChange(this.#engine.tick());
       this.#schedule();
-    });
+    }, delay);
   }
 }

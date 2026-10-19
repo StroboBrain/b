@@ -1,12 +1,18 @@
 // Keep the legacy prefix so each hosted path can clean up its earlier caches.
 const CACHE_PREFIX = `still-${encodeURIComponent(self.registration.scope)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}c05bff79af4f`;
+const CACHE_NAME = `${CACHE_PREFIX}7b1f287c7c88`;
 const APP_SHELL = [
   './index.html',
   './styles.css',
   './js/app.js',
   './js/main.js',
   './js/offline-support.js',
+  './js/duration-picker.js',
+  './js/preset-tiles.js',
+  './js/phase-labels.js',
+  './js/session-view.js',
+  './js/install-prompt.js',
+  './js/viewport-layout.js',
   './js/preset-editor.js',
   './js/session-driver.js',
   './js/phase-cues.js',
@@ -39,11 +45,10 @@ self.addEventListener('activate', (event) => {
     await Promise.all(previousVersions.map((key) => caches.delete(key)));
     await self.clients.claim();
     if (previousVersions.length) {
-      // Reload even legacy clients that have no controllerchange listener.
-      // Their pagehide handler saves pending edits before navigation.
+      // Each page decides when it is safe to reload. Legacy clients use the
+      // complete new shell on their next launch without losing a session.
       const clients = await self.clients.matchAll({ type: 'window' });
-      // Do not await navigation inside activate: its fetch waits for activation.
-      for (const client of clients) client.navigate(client.url).catch(() => {});
+      for (const client of clients) client.postMessage({ type: 'APP_UPDATED' });
     }
   })());
 });
@@ -56,9 +61,11 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     // Serve HTML and assets from the same installed app version.
-    const key = request.mode === 'navigate'
-      ? new URL('./index.html', self.registration.scope)
-      : request;
+    const appRoot = new URL(self.registration.scope);
+    const index = new URL('./index.html', appRoot);
+    const isAppNavigation = request.mode === 'navigate'
+      && (url.pathname === appRoot.pathname || url.pathname === index.pathname);
+    const key = isAppNavigation ? index : request;
     const cached = await cache.match(key);
     return cached || fetch(request);
   })());
