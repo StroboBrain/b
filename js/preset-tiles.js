@@ -1,5 +1,5 @@
 import { PHASES, validateConfig } from './breathing-engine.js';
-import { phaseDescription } from './phase-labels.js';
+import { phaseDescription, spokenDuration } from './phase-labels.js';
 
 /** Renders native radios without replacing focused controls for a name/timing edit. */
 export class PresetTiles {
@@ -47,7 +47,7 @@ export class PresetTiles {
       tile.querySelector('.preset-name').textContent = preset.name;
       tile.querySelector('.preset-timing').textContent = `${PHASES.map((phase) => preset.config[phase]).join(' · ')} s`;
       const description = PHASES.map((phase) => preset.config[phase] === 0
-        ? `no ${phaseDescription(phase)}` : `${phaseDescription(phase)} ${preset.config[phase]} seconds`).join(', ');
+        ? `no ${phaseDescription(phase)}` : `${phaseDescription(phase)} ${spokenDuration(preset.config[phase])}`).join(', ');
       input.setAttribute('aria-label', `${preset.name}: ${description}`);
       next.set(preset.id, tile);
     }

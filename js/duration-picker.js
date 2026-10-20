@@ -1,5 +1,5 @@
-import { PHASES, validateConfig } from './breathing-engine.js';
-import { phaseDescription } from './phase-labels.js';
+import { CONFIG_LIMITS, PHASES, validateConfig } from './breathing-engine.js';
+import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
@@ -52,7 +52,10 @@ export class DurationPicker {
     this.#listen(document, 'pointerup', (event) => this.#finishPress(event.pointerId));
     this.#listen(document, 'pointercancel', (event) => this.#finishPress(event.pointerId));
     this.#listen(container, 'lostpointercapture', (event) => this.#finishPress(event.pointerId));
-    this.#listen(document, 'scroll', () => this.close(), true);
+    // Capture sees element scrolls too; an overflowing picker on a short screen must stay open.
+    this.#listen(document, 'scroll', ({ target }) => {
+      if (!Object.values(this.#controls).some(({ picker }) => picker === target)) this.close();
+    }, true);
     this.#listen(window, 'resize', () => this.close());
     this.#listen(window, 'blur', () => this.#finishPress());
     this.#listen(document, 'visibilitychange', () => { if (document.hidden) this.close(); });
@@ -142,8 +145,7 @@ export class DurationPicker {
       this.#renderValue(phase);
       return;
     }
-    const minimum = phase.startsWith('hold') ? 0 : 1;
-    const value = Math.max(minimum, Math.min(60, Math.round(Number(slider.value) * 10) / 10));
+    const value = this.#clamp(phase, Number(slider.value));
     if (Number.isFinite(value)) this.#setValue(phase, value);
   }
 
@@ -159,9 +161,13 @@ export class DurationPicker {
   #step(button) {
     const phase = button.dataset.field;
     if (!this.#values || !PHASES.includes(phase)) return false;
-    const value = Math.max(phase.startsWith('hold') ? 0 : 1,
-      Math.min(60, Math.round((this.#values[phase] + Number(button.dataset.step)) * 10) / 10));
-    return this.#setValue(phase, value);
+    return this.#setValue(phase, this.#clamp(phase, this.#values[phase] + Number(button.dataset.step)));
+  }
+
+  /** Round to tenths within the phase limits; a non-number stays NaN. */
+  #clamp(phase, value) {
+    const [minimum, maximum] = CONFIG_LIMITS[phase];
+    return Math.max(minimum, Math.min(maximum, Math.round(value * 10) / 10));
   }
 
   #setValue(phase, value) {
@@ -182,16 +188,17 @@ export class DurationPicker {
   #renderValue(phase) {
     const controls = this.#controls[phase];
     const value = this.#values[phase];
-    const duration = value === 0 ? 'off' : `${value}s`;
+    const duration = formatDuration(value);
     controls.value.value = value;
     controls.value.textContent = duration;
-    controls.value.setAttribute('aria-label', `adjust ${phaseDescription(phase)} duration, ${value === 0 ? 'off' : `${value} seconds`}`);
+    controls.value.setAttribute('aria-label', `adjust ${phaseDescription(phase)} duration, ${spokenDuration(value)}`);
     controls.value.closest('.timing-field').classList.toggle('is-off', value === 0);
     controls['picked-value'].value = duration;
     controls.slider.value = String(value);
-    controls.slider.setAttribute('aria-valuetext', value === 0 ? 'off' : `${value} seconds`);
-    controls.decrease.disabled = value === (phase.startsWith('hold') ? 0 : 1);
-    controls.increase.disabled = value === 60;
+    controls.slider.setAttribute('aria-valuetext', spokenDuration(value));
+    const [minimum, maximum] = CONFIG_LIMITS[phase];
+    controls.decrease.disabled = value === minimum;
+    controls.increase.disabled = value === maximum;
     controls['fine-decrease'].disabled = controls.decrease.disabled;
     controls['fine-increase'].disabled = controls.increase.disabled;
     for (const choice of controls.choices) {

@@ -15,3 +15,25 @@ export function phaseDescription(phase) {
 export function phaseLabel(phase) {
   return phaseDescription(phase).startsWith('hold') ? 'hold' : phase;
 }
+
+/** Compact duration for timing controls; zero disables a hold. */
+export function formatDuration(value) {
+  const seconds = durationSeconds(value);
+  return seconds === 0 ? 'off' : `${seconds}s`;
+}
+
+/** Spoken duration; callers describe skipped phases in their own context. */
+export function spokenDuration(value) {
+  const seconds = durationSeconds(value);
+  return seconds === 0 ? 'off' : `${seconds} seconds`;
+}
+
+/** Accept the same 0–60 second tenths used by validated breathing configurations. */
+function durationSeconds(value) {
+  if (typeof value !== 'number') throw new TypeError('A duration must be a number.');
+  if (!Number.isFinite(value) || value < 0 || value > 60
+    || Math.abs(value * 10 - Math.round(value * 10)) > 1e-8) {
+    throw new RangeError('A duration must be in steps of 0.1 from 0 to 60.');
+  }
+  return Math.round(value * 10) / 10;
+}

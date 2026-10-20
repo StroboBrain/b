@@ -1,4 +1,4 @@
-import { phaseLabel } from './phase-labels.js';
+import { phaseLabel, spokenDuration } from './phase-labels.js';
 
 /** Renders engine snapshots; CSS owns motion and the layout of each state. */
 export class SessionView {
@@ -13,7 +13,7 @@ export class SessionView {
     this.#elements = elements;
   }
 
-  render(snapshot, { inhale, storageWarning }) {
+  render(snapshot, { inhale }) {
     const ui = this.#elements;
     const { status, phase } = snapshot;
     const running = status === 'running';
@@ -28,7 +28,6 @@ export class SessionView {
       ui['session-button-label'].textContent = running ? 'stop' : status === 'paused' ? 'resume' : 'start';
       ui['session-button-icon'].className = running ? 'icon-stop' : 'icon-play';
       ui['phase-caption'].textContent = status === 'paused' ? `${label} · paused` : label;
-      ui['settings-note'].textContent = storageWarning ? 'storage unavailable. changes are for this visit.' : '';
 
       const visual = ui['breathing-visual'];
       visual.dataset.state = status;
@@ -55,7 +54,7 @@ export class SessionView {
     if (announcementKey !== this.#lastAnnouncementKey) {
       this.#lastAnnouncementKey = announcementKey;
       ui['phase-announcement'].textContent = active
-        ? `${status === 'paused' ? 'paused. ' : ''}${label} for ${Math.ceil(snapshot.phaseRemainingMs / 1000)} seconds.`
+        ? `${status === 'paused' ? 'paused. ' : ''}${label} for ${spokenDuration(Math.ceil(snapshot.phaseRemainingMs / 1000))}.`
         : '';
     }
   }

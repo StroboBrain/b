@@ -10,7 +10,7 @@ import { DurationPicker } from './duration-picker.js';
 import { PresetTiles } from './preset-tiles.js';
 import { SessionView } from './session-view.js';
 import { InstallPrompt } from './install-prompt.js';
-import { phaseDescription } from './phase-labels.js';
+import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const TOGGLE_PREFERENCES = {
   'show-breath-text': 'showBreathText',
@@ -52,6 +52,7 @@ export class BreathingApp {
   #cues;
   get #presets() { return this.#editor.presets; }
   get #config() { return this.#editor.selected.config; }
+  get #status() { return this.#session.snapshot.status; }
   #presetsChanged = false;
   #elements = {};
   #zenSurroundings;
@@ -86,7 +87,7 @@ export class BreathingApp {
     this.#preferences = store.loadPreferences();
     this.#durationPicker = new DurationPicker({ document, window, container: this.#elements['timing-fields'],
       onChange: (phase, value) => this.#setField(phase, value), onCommit: () => this.#editor.flush(),
-      canChange: () => this.#session.snapshot.status === 'idle',
+      canChange: () => this.#status === 'idle',
     });
     this.#presetTiles = new PresetTiles({ document, container: this.#elements['preset-tiles'],
       onSelect: (id) => this.#selectPreset(id),
@@ -95,7 +96,7 @@ export class BreathingApp {
       onUnavailable: () => this.#notify('install b from your browser menu.'),
     });
     this.#navigation = new ZenNavigator({ window, onChange: (enabled) => {
-      if (!enabled && this.#session.snapshot.status !== 'idle') this.#stopSession();
+      if (!enabled && this.#status !== 'idle') this.#stopSession();
       this.#setZenMode(enabled);
     } });
     this.#populatePresets();
@@ -113,7 +114,7 @@ export class BreathingApp {
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
     this.#document.addEventListener('click', (event) => {
       if (!this.#zenMode || !this.#preferences.fadeButtons
-        || this.#session.snapshot.status === 'paused') return;
+        || this.#status === 'paused') return;
       // Capture the tap before a control can act on the restored menu.
       event.preventDefault();
       event.stopPropagation();
@@ -126,14 +127,15 @@ export class BreathingApp {
       if (HOLD_FEEDBACK_VARIANTS.includes(target.value)) this.#setPreference('holdFeedback', target.value);
     });
     ui['preset-name'].addEventListener('input', () => {
-      if (this.#session.snapshot.status !== 'idle') return;
-      const name = ui['preset-name'].value.trim();
-      if (name.length === 0 || name.length > 32) {
+      if (this.#status !== 'idle') return;
+      try {
+        this.#editor.rename(ui['preset-name'].value);
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
         ui['preset-name'].setCustomValidity('use 1–32 characters for the preset name.');
         return;
       }
       ui['preset-name'].setCustomValidity('');
-      this.#editor.rename(name);
       this.#syncPresetControls();
     });
     ui['preset-name'].addEventListener('change', () => {
@@ -148,7 +150,7 @@ export class BreathingApp {
     ui['preset-selector'].addEventListener('change', ({ target }) => this.#selectPreset(target.value));
 
     ui['delete-preset'].addEventListener('click', () => {
-      if (this.#session.snapshot.status !== 'idle' || this.#presets.length <= 2) return;
+      if (this.#status !== 'idle' || this.#presets.length <= 2) return;
       const name = this.#editor.selected.name;
       try {
         if (!this.#editor.remove()) return;
@@ -166,26 +168,27 @@ export class BreathingApp {
     });
 
     this.#document.addEventListener('visibilitychange', () => {
-      if (!this.#document.hidden) return;
-      if (this.#session.snapshot.status === 'running') this.#session.pause();
-      this.#editor.flush();
+      if (this.#document.hidden) this.#suspend();
     });
-    this.#window.addEventListener('pagehide', () => {
-      if (this.#session.snapshot.status === 'running') this.#session.pause();
-      this.#editor.flush();
-    });
+    this.#window.addEventListener('pagehide', () => this.#suspend());
 
     this.#window.addEventListener('storage', (event) => {
       // An active exercise keeps its timing even if another tab edits a preset.
       if (PresetStore.affectsPresets(event.key)) {
         this.#presetsChanged = true;
-        if (this.#session.snapshot.status === 'idle') this.#refreshPresets();
+        if (this.#status === 'idle') this.#refreshPresets();
       }
       if (PresetStore.affectsPreferences(event.key)) {
         this.#preferences = this.#store.loadPreferences();
         this.#syncPreferences();
       }
     });
+  }
+
+  /** Leaving the page pauses a running exercise and saves pending edits. */
+  #suspend() {
+    if (this.#status === 'running') this.#session.pause();
+    this.#editor.flush();
   }
 
   #refreshPresets() {
@@ -198,14 +201,14 @@ export class BreathingApp {
   }
 
   #setField(field, value) {
-    if (this.#session.snapshot.status !== 'idle') return;
+    if (this.#status !== 'idle') return;
     this.#editor.setConfig({ ...this.#config, [field]: value });
     this.#syncSettings();
     this.#render(this.#session.snapshot);
   }
 
   #selectPreset(id) {
-    if (this.#session.snapshot.status !== 'idle') return;
+    if (this.#status !== 'idle') return;
     this.#durationPicker.close();
     const adding = id === 'add-preset';
     if (adding) this.#editor.add();
@@ -227,10 +230,10 @@ export class BreathingApp {
     this.#durationPicker.render(this.#config);
     for (const field of PHASES) {
       const value = this.#config[field];
-      ui[`track-${field}`].textContent = value === 0 ? 'off' : `${value}s`;
+      ui[`track-${field}`].textContent = formatDuration(value);
       const step = ui['phase-track'].querySelector(`[data-phase="${field}"]`);
       step.classList.toggle('is-skipped', value === 0);
-      step.setAttribute('aria-label', `${phaseDescription(field)}: ${value === 0 ? 'skipped' : `${value} seconds`}`);
+      step.setAttribute('aria-label', `${phaseDescription(field)}: ${value === 0 ? 'skipped' : spokenDuration(value)}`);
     }
     ui['hold-feedback-fields'].disabled = this.#config.holdIn === 0 && this.#config.holdOut === 0;
     this.#syncPresetControls();
@@ -304,7 +307,7 @@ export class BreathingApp {
 
   #toggleSession() {
     this.#durationPicker.close();
-    const status = this.#session.snapshot.status;
+    const status = this.#status;
     if (status === 'running') {
       this.#navigation.leave();
       return;
@@ -324,7 +327,7 @@ export class BreathingApp {
 
   #render(snapshot) {
     this.#cues.update(snapshot);
-    this.#sessionView.render(snapshot, { inhale: this.#config.inhale, storageWarning: this.#storageWarningShown });
+    this.#sessionView.render(snapshot, { inhale: this.#config.inhale });
     if (snapshot.status === 'idle') this.#offlineSupport?.applyPendingUpdate();
   }
 
@@ -343,7 +346,7 @@ export class BreathingApp {
   #registerOfflineSupport() {
     this.#offlineSupport = new OfflineSupport({ window: this.#window, document: this.#document,
       onUnavailable: () => this.#notify('offline mode unavailable. reopen b while online to retry.'),
-      isIdle: () => this.#session.snapshot.status === 'idle',
+      isIdle: () => this.#status === 'idle',
     });
     this.#offlineSupport.start();
   }

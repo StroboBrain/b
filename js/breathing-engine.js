@@ -13,11 +13,12 @@ export const DEFAULT_CONFIG = Object.freeze({
   holdOut: 4,
 });
 
-const CONFIG_LIMITS = Object.freeze({
-  inhale: [1, 60],
-  holdIn: [0, 60],
-  exhale: [1, 60],
-  holdOut: [0, 60],
+/** Inclusive [minimum, maximum] seconds for each phase. */
+export const CONFIG_LIMITS = Object.freeze({
+  inhale: Object.freeze([1, 60]),
+  holdIn: Object.freeze([0, 60]),
+  exhale: Object.freeze([1, 60]),
+  holdOut: Object.freeze([0, 60]),
 });
 
 /** The four phases in cycle order; also the configuration's field names. */
