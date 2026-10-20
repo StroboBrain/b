@@ -34,7 +34,7 @@ export class DurationPicker {
     this.#onCommit = onCommit;
     this.#canChange = canChange;
     this.#controls = Object.fromEntries(PHASES.map((phase) => {
-      const controls = Object.fromEntries(['value', 'picker', 'picked-value', 'decrease', 'increase']
+      const controls = Object.fromEntries(['value', 'picker', 'picked-value', 'decrease', 'increase', 'slider', 'fine-decrease', 'fine-increase']
         .map((suffix) => [suffix, document.getElementById(`${phase}-${suffix}`)]));
       if (Object.values(controls).some((element) => !element)) {
         throw new Error(`DurationPicker is missing controls for ${phase}.`);
@@ -45,6 +45,10 @@ export class DurationPicker {
 
     this.#listen(container, 'pointerdown', (event) => this.#startPress(event));
     this.#listen(container, 'click', (event) => this.#click(event));
+    this.#listen(container, 'input', (event) => this.#slide(event));
+    this.#listen(container, 'change', (event) => {
+      if (event.target.classList.contains('duration-slider')) this.#commit();
+    });
     this.#listen(document, 'pointerup', (event) => this.#finishPress(event.pointerId));
     this.#listen(document, 'pointercancel', (event) => this.#finishPress(event.pointerId));
     this.#listen(container, 'lostpointercapture', (event) => this.#finishPress(event.pointerId));
@@ -130,6 +134,19 @@ export class DurationPicker {
     press.timer = this.#window.setTimeout(repeat, REPEAT_DELAY_MS);
   }
 
+  #slide(event) {
+    const slider = event.target;
+    const phase = slider.dataset.field;
+    if (!slider.classList.contains('duration-slider') || !PHASES.includes(phase)) return;
+    if (slider.matches(':disabled') || !this.#canChange()) {
+      this.#renderValue(phase);
+      return;
+    }
+    const minimum = phase.startsWith('hold') ? 0 : 1;
+    const value = Math.max(minimum, Math.min(60, Math.round(Number(slider.value) * 10) / 10));
+    if (Number.isFinite(value)) this.#setValue(phase, value);
+  }
+
   #finishPress(pointerId) {
     const press = this.#press;
     if (!press || (pointerId !== undefined && pointerId !== press.pointerId)) return;
@@ -143,7 +160,7 @@ export class DurationPicker {
     const phase = button.dataset.field;
     if (!this.#values || !PHASES.includes(phase)) return false;
     const value = Math.max(phase.startsWith('hold') ? 0 : 1,
-      Math.min(60, this.#values[phase] + Number(button.dataset.step)));
+      Math.min(60, Math.round((this.#values[phase] + Number(button.dataset.step)) * 10) / 10));
     return this.#setValue(phase, value);
   }
 
@@ -171,8 +188,12 @@ export class DurationPicker {
     controls.value.setAttribute('aria-label', `adjust ${phaseDescription(phase)} duration, ${value === 0 ? 'off' : `${value} seconds`}`);
     controls.value.closest('.timing-field').classList.toggle('is-off', value === 0);
     controls['picked-value'].value = duration;
+    controls.slider.value = String(value);
+    controls.slider.setAttribute('aria-valuetext', value === 0 ? 'off' : `${value} seconds`);
     controls.decrease.disabled = value === (phase.startsWith('hold') ? 0 : 1);
     controls.increase.disabled = value === 60;
+    controls['fine-decrease'].disabled = controls.decrease.disabled;
+    controls['fine-increase'].disabled = controls.increase.disabled;
     for (const choice of controls.choices) {
       choice.setAttribute('aria-pressed', String(Number(choice.dataset.value) === value));
     }

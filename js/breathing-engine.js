@@ -1,9 +1,9 @@
 /**
  * @typedef {Object} BreathingConfig
- * @property {number} inhale Whole seconds, 1–60.
- * @property {number} holdIn Whole seconds, 0–60.
- * @property {number} exhale Whole seconds, 1–60.
- * @property {number} holdOut Whole seconds, 0–60.
+ * @property {number} inhale Seconds in tenths, 1–60.
+ * @property {number} holdIn Seconds in tenths, 0–60.
+ * @property {number} exhale Seconds in tenths, 1–60.
+ * @property {number} holdOut Seconds in tenths, 0–60.
  */
 
 export const DEFAULT_CONFIG = Object.freeze({
@@ -34,7 +34,7 @@ export function configsEqual(left, right) {
  * @param {BreathingConfig} config
  * @returns {BreathingConfig}
  * @throws {TypeError} If the configuration or one of its fields has the wrong type.
- * @throws {RangeError} If a field is not an integer within its permitted range.
+ * @throws {RangeError} If a field is not in tenths within its permitted range.
  */
 export function validateConfig(config) {
   if (config === null || typeof config !== 'object' || Array.isArray(config)) {
@@ -47,10 +47,11 @@ export function validateConfig(config) {
     if (typeof value !== 'number') {
       throw new TypeError(`${field} must be a number.`);
     }
-    if (!Number.isInteger(value) || value < minimum || value > maximum) {
-      throw new RangeError(`${field} must be a whole number from ${minimum} to ${maximum}.`);
+    if (!Number.isFinite(value) || Math.abs(value * 10 - Math.round(value * 10)) > 1e-8
+      || value < minimum || value > maximum) {
+      throw new RangeError(`${field} must be in steps of 0.1 from ${minimum} to ${maximum}.`);
     }
-    normalized[field] = value;
+    normalized[field] = Math.round(value * 10) / 10;
   }
   return normalized;
 }
@@ -102,7 +103,7 @@ export class BreathingEngine {
     const normalized = validateConfig(config);
     const startedAt = this.#readClock();
     const phases = PHASES
-      .map((name) => ({ name, durationMs: normalized[name] * 1000 }))
+      .map((name) => ({ name, durationMs: Math.round(normalized[name] * 1000) }))
       .filter((phase) => phase.durationMs > 0);
 
     this.#phases = phases;

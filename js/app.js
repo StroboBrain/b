@@ -27,7 +27,7 @@ export const REQUIRED_IDS = Object.freeze([
   'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields', 'preset-name',
   'preset-tiles', 'preset-selector', 'delete-preset', 'preset-fields', 'settings-form', 'settings-fields', 'settings-note', 'timing-fields',
   'zen-back', 'install-button', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
-  ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-picker`, `${phase}-picked-value`, `track-${phase}`]),
+  ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-fine-decrease`, `${phase}-fine-increase`, `${phase}-picker`, `${phase}-picked-value`, `${phase}-slider`, `track-${phase}`]),
 ]);
 
 export function collectElements(document) {

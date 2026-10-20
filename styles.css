@@ -43,10 +43,10 @@ button:disabled, .preset-tile:has(:disabled) { cursor: default; opacity: .4; }
 .app-shell { max-width: calc(640px + var(--scrollbar-space)); margin: auto; padding: 24px 32px 32px; padding-left: calc(32px + var(--scrollbar-space)); }
 .install-footer:has(#install-button:not([hidden])) { margin-top: 24px; }
 #install-button { width: 100%; }
-.practice-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
-.practice-card, .settings-card { min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.practice-card { position: relative; padding: 24px; display: flex; flex-direction: column; container-type: inline-size; }
-.breathing-visual { --orb-size: 73%; --breath-small: .62; --breath-large: 1.16; --breath-dark: #262626; --breath-light: #555; width: min(310px, 100%, max(80px, calc(100svh - 252px))); aspect-ratio: 1; position: relative; display: grid; place-items: center; margin: 8px auto 28px; flex-shrink: 0; }
+.practice-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.practice-card, .settings-card { min-width: 0; background: var(--surface); }
+.practice-card { position: relative; padding: 12px 0 0; display: flex; flex-direction: column; container-type: inline-size; }
+.breathing-visual { --orb-size: 80%; --breath-small: .62; --breath-large: 1.16; --breath-dark: #262626; --breath-light: #555; width: min(310px, 100%, max(80px, calc(100svh - 252px))); aspect-ratio: 1; position: relative; display: grid; place-items: center; margin: 0 auto 12px; flex-shrink: 0; }
 .breathing-orb { position: relative; width: var(--orb-size); height: var(--orb-size); border-radius: 50%; overflow: hidden; background-color: var(--breath-dark); transform: scale(var(--breath-small)); will-change: transform; }
 .breathing-orb::after { content: ""; position: absolute; inset: 0; z-index: 1; background: radial-gradient(circle at 36% 27%, #d0d0d01a 0%, transparent 45%, #0000002e 100%); pointer-events: none; }
 .breath-guide { position: absolute; inset: 0; margin: auto; z-index: 1; overflow: visible; pointer-events: none; }
@@ -118,26 +118,29 @@ button:disabled, .preset-tile:has(:disabled) { cursor: default; opacity: .4; }
 .toggle-mark { appearance: none; margin: 0; display: grid; place-items: center; flex-shrink: 0; width: 15px; height: 15px; border: 1px solid #777; border-radius: 3px; }
 .toggle-mark:checked { background: var(--paper); border-color: var(--paper); }
 .toggle-mark:checked::after { content: ""; width: 7px; height: 4px; border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: translateY(-1px) rotate(-45deg); }
-.settings-card { padding: 24px; container: preset-editor / inline-size; }
+.settings-card { padding: 24px; border: 1px solid var(--line); border-radius: 10px; container: preset-editor / inline-size; }
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .phase-timings, .preset-options, .display-options, .hold-options { padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
 .preset-options, .display-options, .hold-options { margin-top: 16px; }
 .settings-card > legend, .phase-timings > legend, .preset-options > legend, .display-options > legend, .hold-options > legend, .timing-field > legend { padding: 0 6px; font-size: var(--text-label); font-weight: 500; color: #ccc; }
 .hold-options:disabled { opacity: .4; }
 .hold-options:not(:disabled) .hold-empty-note { display: none; }
-.hold-options:disabled .hold-choice .hold-fill { animation: none; }
 .hold-options:disabled .hold-choice { cursor: default; }
-.hold-options:disabled .hold-choice:hover { border-color: var(--line-strong); background: var(--ink); }
 .hold-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .hold-choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 78px; padding: 10px 4px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--ink); color: #bbb; font-size: var(--text-caption); }
-.display-toggle:hover, .hold-choice:hover { border-color: #777; background: #161616; }
+.display-toggle:hover:not(:has(:checked, :disabled)), .hold-choice:hover:not(:has(:checked, :disabled)) { border-color: #777; background: #161616; }
 .hold-sample { position: relative; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; background: #262626; }
-.hold-sample .hold-fill { --hold-progress: .5; }
-.hold-choice:has(:checked) .hold-fill { animation: hold-fill 4s linear infinite; }
+.hold-sample .hold-fill { --hold-progress: .3; animation: hold-preview-fill 13.833333333s linear infinite; }
+.hold-options:disabled .hold-sample .hold-fill { animation: none; }
+/* Fill at 30% of the original speed (13 1/3 seconds), then pause for half a second. */
+@keyframes hold-preview-fill {
+  from { --hold-progress: 0; }
+  96.3855422%, to { --hold-progress: 1; }
+}
 .is-zen .hold-choice .hold-fill { animation-play-state: paused; }
 .preset-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .preset-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; min-width: 0; min-height: 88px; padding: 14px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--ink); color: #ccc; text-align: left; }
-.preset-tile:hover:not(:has(:disabled)) { background: #161616; border-color: #777; }
+.preset-tile:hover:not(:has(:checked, :disabled)) { background: #161616; border-color: #777; }
 .preset-tile:has(:checked) { border-color: #c5c5c5; background: #1c1c1c; color: var(--paper); }
 .preset-name { font-size: var(--text-label); font-weight: 500; overflow-wrap: anywhere; text-transform: none; }
 .preset-timing { font-size: var(--text-caption); color: #bbb; font-variant-numeric: tabular-nums; }
@@ -162,13 +165,20 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .duration-picker:popover-open { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .picker-heading { font-size: var(--text-caption); color: #bbb; text-align: center; }
 .picker-value { font-size: 24px; font-variant-numeric: tabular-nums; }
-.duration-stepper { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: center; gap: 8px; width: 100%; text-align: center; }
+.duration-stepper { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: center; gap: 8px; width: 100%; text-align: center; flex-shrink: 0; }
+.duration-step-stack { display: grid; gap: 8px; }
 .duration-step { min-height: 48px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--ink); color: var(--paper); font-size: 24px; touch-action: none; }
 .duration-step:hover:not(:disabled) { background: #242424; border-color: #aaa; }
+.duration-fine-step { font-size: var(--text-label); font-variant-numeric: tabular-nums; padding: 8px 4px; }
+.duration-slider { --slider-knob-size: 27.2px; appearance: none; writing-mode: vertical-lr; direction: rtl; width: 48px; height: clamp(120px, 30dvh, 240px); margin: 6px 0; background: transparent; touch-action: none; cursor: pointer; flex-shrink: 0; }
+.duration-slider::-webkit-slider-runnable-track { width: 6px; border-radius: 3px; background: var(--line-strong); }
+.duration-slider::-webkit-slider-thumb { appearance: none; box-sizing: border-box; width: var(--slider-knob-size); height: var(--slider-knob-size); margin-left: calc((6px - var(--slider-knob-size)) / 2); border: 2px solid #eee; border-radius: 50%; background: var(--paper); box-shadow: 0 2px 8px #0008; }
+.duration-slider::-moz-range-track { width: 6px; border-radius: 3px; background: var(--line-strong); }
+.duration-slider::-moz-range-thumb { box-sizing: border-box; width: var(--slider-knob-size); height: var(--slider-knob-size); border: 2px solid #eee; border-radius: 50%; background: var(--paper); box-shadow: 0 2px 8px #0008; }
 .picker-done { width: 100%; min-height: 44px; padding: 8px; flex-shrink: 0; }
 .time-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .time-choice { min-width: 0; min-height: 48px; border: 1px solid var(--line-strong); border-radius: 5px; padding: 5px 0; background: transparent; color: #bbb; font-size: var(--text-label); font-variant-numeric: tabular-nums; }
-.time-choice:hover:not(:disabled) { border-color: #777; background: #d0d0d008; }
+.time-choice:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #777; background: #d0d0d008; }
 .display-toggle:has(:checked), .hold-choice:has(:checked), .time-choice[aria-pressed="true"] { border-color: #aaa; background: #1c1c1c; color: var(--paper); }
 .settings-note { margin: 14px 0 0; font-size: var(--text-caption); color: var(--muted); line-height: 1.5; }
 .settings-note:empty { display: none; }
@@ -184,24 +194,18 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
   .phase-dot { display: block; }
 }
 
-@container preset-editor (min-width: 400px) {
-  .time-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
 @media (max-width: 900px) {
   .app-shell { padding-right: 24px; padding-left: calc(24px + var(--scrollbar-space)); }
-  .practice-layout { gap: 18px; }
-  .practice-card, .settings-card { padding: 22px; }
+  .settings-card { padding: 22px; }
   .phase-step { gap: 4px; }
 }
 @media (max-width: 760px) {
   .app-shell { max-width: none; padding: 20px 4px max(24px, env(safe-area-inset-bottom)); padding-left: calc(4px + var(--scrollbar-space)); }
-  .practice-layout { gap: 20px; }
   .phase-count { font-size: 60px; }
   .phase-step { gap: 6px; }
 }
 @media (max-width: 360px) {
-  .practice-card, .settings-card { padding: 18px; }
+  .settings-card { padding: 18px; }
   .phase-step { gap: 4px; }
   .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -235,9 +239,8 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
-  /* Keep decorative motion quiet; the user-started breathing guide still moves. */
+  /* Keep transitions quiet; breathing and hold previews still demonstrate their effects. */
   .breathing-visual[data-state="idle"] .breathing-orb { will-change: auto; }
-  .hold-sample .hold-fill { animation: none !important; }
   .is-zen:has(#fade-buttons:checked) :is(#session-button, #zen-back, .orb-copy, .phase-timings, .notification, .practice-card) { animation-duration: 0s; }
 }
 
