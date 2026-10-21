@@ -1,7 +1,7 @@
 import { configsEqual, DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
 import { PersistenceError } from './preset-store.js';
 
-/** Edits stay in memory until flush; selection alone never writes a preset override.
+/** Pattern drafts stay in memory until save(); selection never commits an edit.
  * Failed storage writes retain dirty edits for retry. Validation errors propagate.
  */
 export class PresetEditor {
@@ -10,6 +10,8 @@ export class PresetEditor {
   #presets;
   #selectedId;
   #dirty = new Set();
+  #saved;
+  #lastSavedId;
   #selectionDirty = false;
   #crypto;
 
@@ -27,14 +29,16 @@ export class PresetEditor {
     this.#presets = store.listPresets();
     const selection = store.loadSelection();
     this.#selectedId = this.#presets.find((preset) => preset.id === selection)?.id ?? this.#presets[0].id;
+    this.#saved = new Map(this.#presets.map(preset => [preset.id, structuredClone(preset)]));
+    this.#lastSavedId = this.#selectedId;
   }
 
   get presets() { return this.#presets; }
   get selected() { return this.#presets.find((preset) => preset.id === this.#selectedId); }
+  get hasDrafts() { return this.#dirty.size > 0; }
 
-  /** Add and select an independent preset; failed saves remain available for retry. */
+  /** Add a draft without writing it or any other pattern to storage. */
   add() {
-    this.flush();
     let name = 'New preset';
     for (let suffix = 2; this.#presets.some((preset) => preset.name.toLowerCase() === name.toLowerCase()); suffix++) {
       name = `New preset ${suffix}`;
@@ -44,7 +48,6 @@ export class PresetEditor {
     this.#selectedId = preset.id;
     this.#dirty.add(preset.id);
     this.#selectionDirty = true;
-    this.flush();
     return preset;
   }
 
@@ -54,15 +57,17 @@ export class PresetEditor {
     if (!name || name.length > 32) throw new RangeError('Use 1–32 characters for a preset name.');
     if (name === this.selected.name) return;
     this.selected.name = name;
-    this.#dirty.add(this.#selectedId);
+    this.#markDirty();
   }
 
   /** Commit deletion before removing it from the UI; failed saves leave it available. */
   remove() {
     if (this.#presets.length <= 2) throw new RangeError('Keep at least two presets.');
-    if (!this.flush()) return false;
     const index = this.#presets.findIndex((preset) => preset.id === this.#selectedId);
-    if (!this.#persist(() => this.#store.deletePreset(this.#selectedId))) return false;
+    if (this.#saved.has(this.#selectedId)
+      && !this.#persist(() => this.#store.deletePreset(this.#selectedId))) return false;
+    this.#saved.delete(this.#selectedId);
+    this.#dirty.delete(this.#selectedId);
     this.#presets.splice(index, 1);
     this.#selectedId = this.#presets[Math.min(index, this.#presets.length - 1)].id;
     this.#selectionDirty = true;
@@ -74,38 +79,70 @@ export class PresetEditor {
     const normalized = validateConfig(config);
     if (configsEqual(normalized, this.selected.config)) return;
     this.selected.config = normalized;
-    this.#dirty.add(this.#selectedId);
+    this.#markDirty();
   }
 
   select(id) {
     if (!this.#presets.some((preset) => preset.id === id)) throw new RangeError('Choose an available preset.');
-    const saved = this.flush();
     if (this.#selectedId === id) return;
     this.#selectedId = id;
     this.#selectionDirty = true;
-    if (saved) this.#saveSelection();
+    this.#saveSelection();
   }
 
-  flush() {
-    for (const id of this.#dirty) {
-      const preset = this.#presets.find((entry) => entry.id === id);
-      if (!this.#persist(() => this.#store.savePreset(id, preset.name, preset.config))) return false;
-      this.#dirty.delete(id);
+  /** Save only the selected draft, retaining it after a failed write for retry. */
+  save() {
+    const preset = this.selected;
+    if (this.#dirty.has(preset.id)) {
+      if (!this.#persist(() => this.#store.savePreset(preset.id, preset.name, preset.config))) return false;
+      this.#saved.set(preset.id, structuredClone(preset));
+      this.#dirty.delete(preset.id);
     }
     return this.#saveSelection();
   }
 
+  /** Restore the saved pattern; cancelling an unsaved addition removes its draft. */
+  cancel() {
+    const id = this.#selectedId;
+    const index = this.#presets.findIndex(preset => preset.id === id);
+    const saved = this.#saved.get(id);
+    this.#dirty.delete(id);
+    if (saved) this.#presets[index] = structuredClone(saved);
+    else {
+      this.#presets.splice(index, 1);
+      this.#selectedId = this.#presets.find(preset => preset.id === this.#lastSavedId)?.id
+        ?? this.#presets[0].id;
+      this.#selectionDirty = true;
+    }
+  }
+
   refresh() {
-    if (!this.flush()) return false;
-    this.#presets = this.#store.listPresets();
-    if (!this.selected) this.#selectedId = this.#presets[0].id;
+    const next = this.#store.listPresets();
+    const saved = new Map(next.map(preset => [preset.id, structuredClone(preset)]));
+    const drafts = new Map(this.#presets.filter(preset => this.#dirty.has(preset.id)
+      && (!this.#saved.has(preset.id) || saved.has(preset.id))).map(preset => [preset.id, preset]));
+    this.#presets = next.map(preset => drafts.get(preset.id) ?? preset);
+    this.#presets.push(...[...drafts.values()].filter(preset => !saved.has(preset.id)));
+    this.#saved = saved;
+    this.#dirty = new Set(drafts.keys());
+    if (!this.#saved.has(this.#lastSavedId)) this.#lastSavedId = next[0].id;
+    if (!this.selected) this.#selectedId = next[0].id;
     return true;
+  }
+
+  #markDirty() {
+    const saved = this.#saved.get(this.#selectedId);
+    if (saved && saved.name === this.selected.name && configsEqual(saved.config, this.selected.config)) {
+      this.#dirty.delete(this.#selectedId);
+    } else this.#dirty.add(this.#selectedId);
   }
 
   #saveSelection() {
     if (!this.#selectionDirty) return true;
+    if (!this.#saved.has(this.#selectedId)) return true;
     if (!this.#persist(() => this.#store.saveSelection(this.#selectedId))) return false;
     this.#selectionDirty = false;
+    this.#lastSavedId = this.#selectedId;
     return true;
   }
 

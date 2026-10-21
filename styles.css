@@ -49,6 +49,12 @@
 html {
   scrollbar-gutter: stable;
   scrollbar-color: var(--line-strong) var(--surface);
+  overscroll-behavior-y: none;
+}
+/* Pause native fling momentum while the page glide controls the scroll offset.
+   A fresh touch or wheel event cancels the glide and restores normal scrolling. */
+html[data-section-scrolling="true"] {
+  overflow: hidden;
 }
 body {
   font-size: var(--text-body);
@@ -128,21 +134,41 @@ button:disabled, .preset-tile:has(:disabled) {
 .app-shell {
   max-width: calc(640px + var(--scrollbar-space));
   margin: auto;
-  padding: 24px 32px 32px;
+  padding: 24px 32px 0;
   padding-left: calc(32px + var(--scrollbar-space));
 }
-.install-footer {
-  margin-top: 24px;
-  display: grid;
-  gap: 12px;
+.app-page {
+  min-width: 0;
+  min-height: 100svh;
+  scroll-margin-top: 8px;
 }
-#install-button, #reset-local-data {
+.install-footer {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  /* Include the page's 8px top inset and bottom breathing room in its screen,
+     so the document ends exactly where the last page settles. */
+  min-height: calc(100svh - 8px);
+  padding-bottom: max(32px, env(safe-area-inset-bottom));
+}
+.feedback-page {
+  container-type: inline-size;
+}
+.feedback-page > .display-options {
+  margin-top: 0;
+}
+#install-button {
   width: 100%;
+}
+#reset-local-data {
+  width: 75%;
+  justify-self: center;
 }
 .practice-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px;
 }
 .practice-card, .settings-card {
   min-width: 0;
@@ -156,18 +182,20 @@ button:disabled, .preset-tile:has(:disabled) {
   container-type: inline-size;
 }
 .practice-primary {
+  --visual-size: min(310px, 100%, max(80px, calc(100svh - 252px)));
+  --orb-ratio: .8;
+  --breath-small: .62;
+  --breath-large: 1.16;
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 /* Breathing animation and hold effects */
 .breathing-visual {
-  --orb-size: 80%;
-  --breath-small: .62;
-  --breath-large: 1.16;
+  --orb-size: calc(100% * var(--orb-ratio));
   --breath-dark: var(--orb-dark);
   --breath-light: var(--orb-light);
-  width: min(310px, 100%, max(80px, calc(100svh - 252px)));
+  width: var(--visual-size);
   aspect-ratio: 1;
   position: relative;
   display: grid;
@@ -220,14 +248,14 @@ button:disabled, .preset-tile:has(:disabled) {
   height: calc(var(--orb-size) * var(--breath-large));
 }
 /* Guide markup starts hidden; saved preferences reveal it after initialization. */
-.practice-card:has(#show-breath-guides:not(:checked)) .breath-guide {
+.app-shell:has(#show-breath-guides:not(:checked)) .breath-guide {
   visibility: hidden;
 }
-.practice-card:has(#show-phase-timings:not(:checked)) .phase-timings {
+.app-shell:has(#show-phase-timings:not(:checked)) .phase-timings {
   visibility: hidden;
 }
-.practice-card:has(#show-breath-text:not(:checked)) .phase-caption,
-.practice-card:has(#show-breath-numbers:not(:checked)) .phase-count {
+.app-shell:has(#show-breath-text:not(:checked)) .phase-caption,
+.app-shell:has(#show-breath-numbers:not(:checked)) .phase-count {
   display: none;
 }
 .hold-feedback {
@@ -441,6 +469,8 @@ button:disabled, .preset-tile:has(:disabled) {
   background: var(--paper-hover);
 }
 #session-button {
+  width: calc(var(--visual-size) * var(--orb-ratio) * var(--breath-large));
+  align-self: center;
   margin-top: 22px;
   transition: background-color .4s ease, color .4s ease, border-color .4s ease;
 }
@@ -476,7 +506,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .display-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 10px;
 }
 .display-toggle {
   display: grid;
@@ -490,7 +520,7 @@ button:disabled, .preset-tile:has(:disabled) {
   border-radius: 6px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: var(--text-label);
+  font-size: 15px;
   text-align: left;
 }
 .display-toggle > span {
@@ -539,6 +569,19 @@ button:disabled, .preset-tile:has(:disabled) {
 .settings-card {
   container: preset-editor / inline-size;
 }
+.preset-editor {
+  margin-top: 14px;
+  scroll-margin-top: 12px;
+}
+#settings-form {
+  scroll-margin-top: 12px;
+}
+.preset-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
 fieldset {
   border: 0;
   padding: 0;
@@ -546,18 +589,27 @@ fieldset {
   min-width: 0;
 }
 .settings-card, .phase-timings, .preset-options, .display-options, .hold-options {
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
 .preset-options, .display-options, .hold-options {
-  margin-top: 16px;
+  margin-top: 20px;
 }
 .settings-card > legend, .phase-timings > legend, .preset-options > legend, .display-options > legend, .hold-options > legend, .timing-field > legend {
   padding: 0 6px;
   font-size: var(--text-label);
   font-weight: 500;
   color: var(--text-control);
+}
+.settings-card > legend {
+  font-size: 16px;
+}
+.display-options > legend, .hold-options > legend {
+  font-size: 18px;
+}
+.timing-field > legend {
+  font-size: 14px;
 }
 .hold-options:disabled {
   opacity: .4;
@@ -571,7 +623,7 @@ fieldset {
 .hold-choices {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 .hold-choice {
   display: flex;
@@ -586,7 +638,7 @@ fieldset {
   border-radius: 6px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: var(--text-caption);
+  font-size: 15px;
 }
 .display-toggle:hover:not(:has(:checked, :disabled)), .hold-choice:hover:not(:has(:checked, :disabled)) {
   border-color: var(--border-hover);
@@ -623,17 +675,17 @@ fieldset {
 .preset-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 .preset-tile {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 8px;
+  gap: 2px;
   min-width: 0;
-  min-height: 88px;
-  padding: 14px;
+  min-height: 56px;
+  padding: 8px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--ink);
@@ -650,13 +702,23 @@ fieldset {
   color: var(--paper);
 }
 .preset-name {
-  font-size: var(--text-label);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1.2;
   font-weight: 500;
   overflow-wrap: anywhere;
   text-transform: none;
 }
 .preset-timing {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--text-caption);
+  line-height: 1.2;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -668,13 +730,13 @@ fieldset {
   margin-top: 20px;
 }
 .preset-field label {
-  font-size: var(--text-label);
+  font-size: 15px;
   color: var(--text-control);
 }
-.preset-field :is(input, select) {
+.preset-field :is(input[type="text"], select) {
   width: 100%;
   min-width: 0;
-  min-height: 48px;
+  min-height: 50px;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
@@ -688,7 +750,7 @@ fieldset {
 .preset-select-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 .preset-select-row select {
@@ -697,10 +759,10 @@ fieldset {
 .delete-preset {
   position: relative;
   overflow: hidden;
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
-  flex: 0 0 48px;
-  width: 48px;
+  flex: 0 0 50px;
+  width: 50px;
   padding: 12px;
 }
 .delete-preset svg {
@@ -708,24 +770,14 @@ fieldset {
   width: 20px;
   height: 20px;
 }
-.delete-preset::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--line);
-  transform: scaleY(0);
-  transform-origin: bottom;
-}
-.delete-preset.is-holding::before {
-  animation: preset-delete-fill var(--preset-delete-hold-duration) linear forwards;
-}
-@keyframes preset-delete-fill {
-  to { transform: scaleY(1); }
+.delete-preset.is-confirming {
+  border-color: var(--paper);
+  background: var(--surface-selected);
 }
 .timing-fields {
   margin-top: 24px;
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 .timing-field {
   --duration-control-width: 72px;
@@ -903,17 +955,18 @@ fieldset {
 .time-choices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
   gap: 8px;
 }
 .time-choice {
   min-width: 0;
-  min-height: 48px;
+  min-height: 54px;
   border: 1px solid var(--line-strong);
   border-radius: 5px;
   padding: 5px 0;
   background: transparent;
   color: var(--text-secondary);
-  font-size: var(--text-label);
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 .time-choice:hover:not(:disabled):not([aria-pressed="true"]) {
@@ -924,6 +977,61 @@ fieldset {
   border-color: var(--muted);
   background: var(--surface-selected);
   color: var(--paper);
+}
+/* The trash control expands into a confirmation anchored to its own position. */
+.preset-delete-confirmation {
+  position: fixed;
+  inset: auto;
+  width: min(340px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-popover);
+  color: var(--paper);
+  box-shadow: 0 8px 32px var(--shadow-deep);
+  overflow: auto;
+  overscroll-behavior: contain;
+  transform-origin: top left;
+}
+.preset-delete-confirmation:popover-open {
+  animation: preset-confirm-open .3s cubic-bezier(.2, .7, .2, 1) both;
+}
+.preset-delete-confirmation h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+}
+.preset-delete-confirmation p {
+  margin: 12px 0 18px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.preset-delete-confirmation .preset-delete-name {
+  margin-bottom: 0;
+  font-size: 16px;
+  color: var(--paper);
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+.preset-delete-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@keyframes preset-confirm-open {
+  from {
+    opacity: .4;
+    border-radius: 6px;
+    transform: translate(var(--delete-origin-x, 0px), var(--delete-origin-y, 0px))
+      scale(var(--delete-scale-x, 1), var(--delete-scale-y, 1));
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
 }
 /* Reset confirmation */
 .reset-dialog {
@@ -1048,7 +1156,7 @@ fieldset {
 @media (max-width: 760px) {
   .app-shell {
     max-width: none;
-    padding: 8px 4px max(16px, env(safe-area-inset-bottom));
+    padding: 8px 4px 0;
     padding-left: calc(4px + var(--scrollbar-space));
   }
   .phase-count {
@@ -1061,7 +1169,7 @@ fieldset {
   }
 }
 
-/* Compact mobile sections; SectionScroller controls gesture distance and settling speed. */
+/* Mobile sections retain room between controls and fit narrow portrait screens. */
 @media (max-width: 760px), (hover: none) and (pointer: coarse) {
   html {
     scroll-padding-block-start: 8px;
@@ -1070,23 +1178,21 @@ fieldset {
     padding-top: 8px;
   }
   .practice-layout {
-    gap: 8px;
+    gap: 12px;
   }
   .practice-card {
     padding-top: 4px;
   }
-  .practice-primary {
-    min-height: calc(100svh - 12px);
-  }
   .settings-card, .phase-timings, .preset-options, .display-options, .hold-options {
-    padding: 8px;
+    padding: 10px;
   }
   .preset-options, .display-options, .hold-options {
-    margin-top: 8px;
+    margin-top: 12px;
   }
   .install-footer {
-    margin-top: 12px;
-    gap: 8px;
+    margin-top: 16px;
+    gap: 12px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
   .phase-step {
     gap: 4px;
@@ -1098,51 +1204,37 @@ fieldset {
     display: none;
   }
   #session-button {
-    margin-top: 12px;
+    margin-top: 16px;
   }
   .preset-tiles {
-    gap: 8px;
-  }
-  .preset-tile {
-    gap: 4px;
-    min-height: 72px;
-    padding: 10px;
-  }
-  .preset-name {
-    font-size: var(--text-input);
-  }
-  .preset-timing {
-    font-size: var(--text-label);
+    gap: 10px;
   }
   .preset-field {
-    gap: 4px;
+    gap: 6px;
   }
   .preset-field + .preset-field {
-    margin-top: 8px;
+    margin-top: 12px;
   }
   .timing-fields {
-    margin-top: 12px;
-    gap: 8px;
+    margin-top: 14px;
+    gap: 10px;
   }
   .timing-field {
-    --duration-control-width: 56px;
-    padding: 8px;
-    gap: 8px;
+    --duration-control-width: 60px;
+    padding: 6px 8px;
+    gap: 10px;
   }
   .duration-button {
-    min-width: 48px;
+    min-width: 60px;
   }
   .time-choices {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px;
-  }
-  .time-choice {
-    min-height: 48px;
+    gap: 6px;
   }
   .hold-toggle {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
-    min-height: 48px;
+    min-height: 54px;
     padding: 0;
     gap: 0;
   }
@@ -1150,12 +1242,67 @@ fieldset {
     display: none;
   }
   .settings-note {
-    margin-top: 8px;
+    margin-top: 10px;
   }
 }
 @media (max-width: 360px) {
+  .settings-card, .phase-timings, .preset-options, .display-options, .hold-options {
+    padding: 8px;
+  }
+  .timing-field {
+    gap: 6px;
+  }
+  .time-choices {
+    gap: 4px;
+  }
+}
+
+/* Keep the complete pattern editor visible on shorter portrait phones. */
+@media (max-height: 740px) and (max-width: 760px), (max-height: 740px) and (hover: none) and (pointer: coarse) {
+  .preset-field {
+    gap: 4px;
+  }
+  .preset-field :is(input[type="text"], select), .delete-preset, .preset-actions .button {
+    min-height: 44px;
+    padding-block: 8px;
+  }
+  .delete-preset {
+    flex-basis: 44px;
+    width: 44px;
+  }
+  .preset-editor, .timing-fields, .preset-actions {
+    margin-top: 8px;
+  }
+  .timing-fields {
+    gap: 2px;
+  }
+  .timing-field {
+    --duration-control-width: 54px;
+    padding-block: 4px;
+  }
+  .duration-button {
+    min-width: 54px;
+  }
+  .time-choice, .hold-toggle {
+    min-height: 48px;
+  }
+}
+@media (max-height: 600px) and (max-width: 760px), (max-height: 600px) and (hover: none) and (pointer: coarse) {
+  .preset-editor, .timing-fields, .preset-actions {
+    margin-top: 8px;
+  }
+  .timing-fields {
+    gap: 2px;
+  }
+  .preset-actions {
+    margin-top: 6px;
+  }
   .timing-field {
     --duration-control-width: 48px;
+    padding-block: 1px;
+  }
+  .duration-button {
+    min-width: 48px;
   }
 }
 
@@ -1170,16 +1317,6 @@ fieldset {
   pointer-events: none;
   transition: opacity .3s ease, visibility 0s linear .3s;
 }
-#zen-back {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 1;
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
-  padding: 0;
-}
 .line-icon {
   fill: none;
   stroke: currentColor;
@@ -1187,12 +1324,8 @@ fieldset {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.back-icon {
-  width: 20px;
-  height: 20px;
-}
 
-.is-zen:has(#fade-buttons:checked):has(.practice-card[data-state="running"]) :is(#session-button, #zen-back, .orb-copy, .phase-timings, .notification) {
+.is-zen:has(#fade-buttons:checked):has(.practice-card[data-state="running"]) :is(#session-button, .orb-copy, .phase-timings, .notification) {
   animation: fade-interface .3s ease 2s forwards;
 }
 .is-zen:has(#fade-buttons:checked) .practice-card:not([data-state="paused"]) {
@@ -1219,8 +1352,11 @@ fieldset {
   .breathing-visual[data-state="idle"] .breathing-orb {
     will-change: auto;
   }
-  .is-zen:has(#fade-buttons:checked) :is(#session-button, #zen-back, .orb-copy, .phase-timings, .notification, .practice-card) {
+  .is-zen:has(#fade-buttons:checked) :is(#session-button, .orb-copy, .phase-timings, .notification, .practice-card) {
     animation-duration: 0s;
+  }
+  .preset-delete-confirmation:popover-open {
+    animation: none;
   }
 }
 

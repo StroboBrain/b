@@ -11,7 +11,7 @@ import { PresetTiles } from './preset-tiles.js';
 import { SessionView } from './session-view.js';
 import { InstallPrompt } from './install-prompt.js';
 import { ResetConfirmation } from './reset-confirmation.js';
-import { PresetDeleteHold } from './preset-delete-hold.js';
+import { PresetDeleteConfirmation } from './preset-delete-confirmation.js';
 import { OutsideDismissal } from './outside-dismissal.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
@@ -29,8 +29,10 @@ export const REQUIRED_IDS = Object.freeze([
   'phase-count', 'phase-track', 'phase-announcement', 'session-button',
   'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields', 'preset-name',
   'preset-tiles', 'preset-selector', 'delete-preset', 'preset-fields', 'settings-form', 'settings-fields', 'settings-note', 'timing-fields',
-  'zen-back', 'install-button', 'reset-local-data', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
+  'preset-editor', 'preset-editor-done', 'preset-editor-cancel',
+  'install-button', 'reset-local-data', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
   'reset-confirmation', 'reset-cancel', 'reset-delete',
+  'preset-delete-confirmation', 'preset-delete-cancel', 'preset-delete-confirm', 'preset-delete-name',
   'holdIn-enabled', 'holdOut-enabled',
   ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-fine-decrease`, `${phase}-fine-increase`, `${phase}-picker`, `${phase}-picked-value`, `${phase}-slider`, `track-${phase}`]),
 ]);
@@ -73,7 +75,7 @@ export class BreathingApp {
   #zenMode = false;
   #resetting = false;
   #resetConfirmation;
-  #presetDeleteHold;
+  #presetDeleteConfirmation;
 
   constructor({ document = globalThis.document, window = globalThis.window,
     store = new PresetStore(), engine = new BreathingEngine() } = {}) {
@@ -95,7 +97,7 @@ export class BreathingApp {
     this.#editor = new PresetEditor({ store, onStorageError: () => this.#reportStorageFailure() });
     this.#preferences = store.loadPreferences();
     this.#durationPicker = new DurationPicker({ document, window, container: this.#elements['timing-fields'],
-      onChange: (phase, value) => this.#setField(phase, value), onCommit: () => this.#editor.flush(),
+      onChange: (phase, value) => this.#setField(phase, value), onCommit: () => {},
       canChange: () => this.#status === 'idle',
     });
     this.#presetTiles = new PresetTiles({ document, container: this.#elements['preset-tiles'],
@@ -108,11 +110,12 @@ export class BreathingApp {
       dialog: this.#elements['reset-confirmation'], cancelButton: this.#elements['reset-cancel'],
       deleteButton: this.#elements['reset-delete'], onConfirm: () => this.#resetLocalData(),
     });
-    this.#presetDeleteHold = new PresetDeleteHold({ document, window,
-      button: this.#elements['delete-preset'],
+    this.#presetDeleteConfirmation = new PresetDeleteConfirmation({ document, window,
+      trigger: this.#elements['delete-preset'], popup: this.#elements['preset-delete-confirmation'],
+      cancelButton: this.#elements['preset-delete-cancel'], confirmButton: this.#elements['preset-delete-confirm'],
+      nameElement: this.#elements['preset-delete-name'], getPreset: () => this.#editor.selected,
       canDelete: () => !this.#resetting && this.#status === 'idle' && this.#presets.length > 2,
-      onConfirm: () => this.#deletePreset(),
-      onHint: () => this.#notify('hold delete for 3 seconds to remove this preset.'),
+      onConfirm: (id) => this.#deletePreset(id),
     });
     new OutsideDismissal({ document,
       surface: () => this.#notificationDismissible && this.#elements.notification.classList.contains('is-visible')
@@ -135,9 +138,12 @@ export class BreathingApp {
   #bindEvents() {
     const ui = this.#elements;
     ui['settings-form'].addEventListener('submit', (event) => event.preventDefault());
+    ui['preset-editor-done'].addEventListener('click', () => this.#savePattern());
+    ui['preset-editor-cancel'].addEventListener('click', () => this.#cancelPattern());
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
     ui['reset-local-data'].addEventListener('click', () => {
       if (this.#resetting || this.#status !== 'idle') return;
+      this.#presetDeleteConfirmation.close();
       this.#durationPicker.close();
       this.#resetConfirmation.open();
     });
@@ -169,20 +175,23 @@ export class BreathingApp {
     });
     ui['preset-name'].addEventListener('change', () => {
       if (this.#resetting) return;
-      ui['preset-name'].value = this.#editor.selected.name;
-      ui['preset-name'].setCustomValidity('');
-      this.#editor.flush();
+      if (ui['preset-name'].validity.valid) ui['preset-name'].value = this.#editor.selected.name;
     });
     ui['preset-name'].addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
       ui['preset-name'].blur();
+      ui['preset-name'].value = this.#editor.selected.name;
+      ui['preset-name'].setCustomValidity('');
     });
-    ui['zen-back'].addEventListener('click', () => this.#navigation.leave());
     this.#document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && this.#zenMode) this.#navigation.leave();
     });
-    ui['preset-selector'].addEventListener('change', ({ target }) => this.#selectPreset(target.value));
+    ui['preset-selector'].addEventListener('change', ({ target }) => {
+      if (this.#status !== 'idle') return;
+      this.#selectPreset(target.value);
+      this.#scrollPatternSettings();
+    });
 
     this.#document.addEventListener('visibilitychange', () => {
       if (this.#document.hidden) this.#suspend();
@@ -202,12 +211,32 @@ export class BreathingApp {
     });
   }
 
-  /** Leaving the page pauses a running exercise and saves pending edits. */
+  /** Leaving the page pauses a running exercise; pattern drafts remain unsaved. */
   #suspend() {
     if (this.#resetting) return;
-    this.#presetDeleteHold.cancel();
+    this.#presetDeleteConfirmation.close();
     if (this.#status === 'running') this.#session.pause();
-    this.#editor.flush();
+  }
+
+  #savePattern() {
+    if (this.#status !== 'idle' || this.#resetting) return;
+    if (!this.#elements['settings-form'].reportValidity()) return;
+    this.#durationPicker.close();
+    this.#presetDeleteConfirmation.close();
+    if (!this.#editor.save()) return;
+    this.#populatePresets();
+    this.#syncSettings();
+    this.#render(this.#session.snapshot);
+  }
+
+  #cancelPattern() {
+    if (this.#status !== 'idle' || this.#resetting) return;
+    this.#durationPicker.close();
+    this.#presetDeleteConfirmation.close();
+    this.#editor.cancel();
+    this.#populatePresets();
+    this.#syncSettings();
+    this.#render(this.#session.snapshot);
   }
 
   #resetLocalData() {
@@ -229,7 +258,7 @@ export class BreathingApp {
   }
 
   #refreshPresets() {
-    this.#presetDeleteHold.cancel();
+    this.#presetDeleteConfirmation.close();
     this.#durationPicker.close();
     if (!this.#editor.refresh()) return;
     this.#presetsChanged = false;
@@ -245,9 +274,15 @@ export class BreathingApp {
     this.#render(this.#session.snapshot);
   }
 
+  #scrollPatternSettings() {
+    if (this.#status !== 'idle' || this.#resetting) return;
+    this.#elements['settings-form'].scrollIntoView({ block: 'start',
+      behavior: this.#window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  }
+
   #selectPreset(id) {
     if (this.#status !== 'idle') return;
-    this.#presetDeleteHold.cancel();
+    this.#presetDeleteConfirmation.close();
     this.#durationPicker.close();
     const adding = id === 'add-preset';
     if (adding) this.#editor.add();
@@ -257,13 +292,14 @@ export class BreathingApp {
     this.#render(this.#session.snapshot);
     this.#elements['phase-announcement'].textContent = `${this.#editor.selected.name} ${adding ? 'added' : 'selected'}.`;
     if (adding) {
-      this.#elements['preset-name'].focus();
+      this.#elements['preset-name'].focus({ preventScroll: true });
       this.#elements['preset-name'].select();
     }
   }
 
-  #deletePreset() {
-    if (this.#resetting || this.#status !== 'idle' || this.#presets.length <= 2) return;
+  #deletePreset(id) {
+    if (this.#resetting || this.#status !== 'idle' || this.#presets.length <= 2
+      || this.#editor.selected.id !== id) return;
     this.#durationPicker.close();
     const name = this.#editor.selected.name;
     try {
@@ -314,8 +350,9 @@ export class BreathingApp {
     }
     ui['preset-selector'].value = this.#editor.selected.id;
     ui['delete-preset'].disabled = presets.length <= 2;
-    ui['delete-preset'].title = presets.length <= 2 ? 'keep at least two presets' : 'hold for 3 seconds to delete selected preset';
-    ui['delete-preset'].setAttribute('aria-label', `hold for 3 seconds to delete ${this.#editor.selected.name}`);
+    ui['delete-preset'].title = presets.length <= 2 ? 'keep at least two presets' : 'delete selected preset';
+    ui['delete-preset'].setAttribute('aria-label', `delete ${this.#editor.selected.name}`);
+    this.#presetDeleteConfirmation.render();
   }
 
   #setPreference(key, value) {
@@ -357,7 +394,6 @@ export class BreathingApp {
     this.#zenMode = enabled;
     this.#document.body.classList.toggle('is-zen', enabled);
     for (const element of this.#zenSurroundings) element.inert = enabled;
-    this.#elements['zen-back'].hidden = !enabled;
     this.#elements['session-button'].focus({ preventScroll: true });
   }
 
@@ -367,7 +403,7 @@ export class BreathingApp {
   }
 
   #toggleSession() {
-    this.#presetDeleteHold.cancel();
+    this.#presetDeleteConfirmation.close();
     this.#durationPicker.close();
     const status = this.#status;
     if (status === 'running') {
@@ -376,7 +412,6 @@ export class BreathingApp {
     }
     if (status === 'idle') {
       if (!this.#elements['settings-form'].reportValidity()) return;
-      this.#editor.flush();
     }
     this.#cues.unlock();
     if (status === 'paused') this.#session.resume();
@@ -415,7 +450,7 @@ export class BreathingApp {
   #registerOfflineSupport() {
     this.#offlineSupport = new OfflineSupport({ window: this.#window, document: this.#document,
       onUnavailable: () => this.#notify('offline mode unavailable. reopen b while online to retry.'),
-      isIdle: () => this.#status === 'idle',
+      isIdle: () => this.#status === 'idle' && !this.#editor.hasDrafts,
     });
     this.#offlineSupport.start();
   }

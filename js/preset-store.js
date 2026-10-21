@@ -21,18 +21,19 @@ const freezePreset = (preset) => Object.freeze({
   config: Object.freeze(preset.config),
 });
 
-/** Four built-in exercises. Added presets and edits share local storage with stable IDs. */
+/** Initial exercises. Added presets and edits share local storage with stable IDs. */
 const BASE_PRESETS = Object.freeze([
   freezePreset({ id: 'box', name: 'Box breathing', config: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 } }),
   freezePreset({ id: 'slow', name: 'Slow breathing', config: { inhale: 4, holdIn: 0, exhale: 6, holdOut: 0 } }),
   freezePreset({ id: '478', name: '4–7–8 breathing', config: { inhale: 4, holdIn: 7, exhale: 8, holdOut: 0 } }),
   freezePreset({ id: 'equal', name: 'Equal breathing', config: { inhale: 5, holdIn: 0, exhale: 5, holdOut: 0 } }),
+  freezePreset({ id: 'custom-1', name: 'Custom 1', config: { inhale: 4, holdIn: 0, exhale: 4, holdOut: 0 } }),
+  freezePreset({ id: 'custom-2', name: 'Custom 2', config: { inhale: 4, holdIn: 2, exhale: 6, holdOut: 2 } }),
 ]);
 
 const findBase = (id) => BASE_PRESETS.find((preset) => preset.id === id);
 const isAddedId = (id) => typeof id === 'string'
   && /^preset-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
-const isLegacyId = (id) => id === 'custom-1' || id === 'custom-2';
 
 function presetsFromOverrides(overrides) {
   return [
@@ -222,7 +223,7 @@ export class PresetStore {
     const ids = new Set();
     const overrides = [];
     for (const entry of stored) {
-      if ((!findBase(entry?.id) && !isAddedId(entry?.id) && !isLegacyId(entry?.id)) || ids.has(entry.id)) continue;
+      if ((!findBase(entry?.id) && !isAddedId(entry?.id)) || ids.has(entry.id)) continue;
       try {
         overrides.push(findBase(entry.id) && entry.deleted === true ? { id: entry.id, deleted: true }
           : { id: entry.id, name: validateName(entry.name), config: validateConfig(entry.config) });

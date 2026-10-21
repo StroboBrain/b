@@ -5,6 +5,7 @@ import { OutsideDismissal } from './outside-dismissal.js';
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
 const SLIDER_MAX_SECONDS = 20;
+const MIN_LEFT_PICKER_WIDTH = 200;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls. Each pointer
@@ -308,7 +309,17 @@ export class DurationPicker {
     const anchor = trigger.getBoundingClientRect();
     const { left, top, width, height } = bounds;
     this.#viewportBounds = bounds;
-    picker.style.left = `${Math.max(left + 8, Math.min(anchor.left + anchor.width / 2 - picker.offsetWidth / 2, left + width - picker.offsetWidth - 8))}px`;
-    picker.style.top = `${Math.max(top + 8, Math.min(anchor.top + anchor.height / 2 - picker.offsetHeight / 2, top + height - picker.offsetHeight - 8))}px`;
+    // Measure after constraining to the visible screen, including a reduced
+    // visual viewport while the keyboard is open. Longer controls scroll inside.
+    const availableLeft = anchor.left - left - 16;
+    const viewportWidth = Math.max(0, width - 16);
+    // A slightly narrower picker keeps the button clear on small phones while
+    // retaining enough room for both step stacks and the longest readout.
+    picker.style.maxWidth = `${availableLeft >= MIN_LEFT_PICKER_WIDTH ? Math.min(viewportWidth, availableLeft) : viewportWidth}px`;
+    picker.style.maxHeight = `${Math.max(0, height - 16)}px`;
+    // Grow up from the duration button and sit beside its left edge when there
+    // is room. Only shift away from that anchor to keep the whole picker visible.
+    picker.style.left = `${Math.max(left + 8, Math.min(anchor.left - picker.offsetWidth - 8, left + width - picker.offsetWidth - 8))}px`;
+    picker.style.top = `${Math.max(top + 8, Math.min(anchor.top + anchor.height - picker.offsetHeight, top + height - picker.offsetHeight - 8))}px`;
   }
 }
