@@ -27,6 +27,9 @@
     <link rel="modulepreload" href="./js/phase-labels.js">
     <link rel="modulepreload" href="./js/session-view.js">
     <link rel="modulepreload" href="./js/install-prompt.js">
+    <link rel="modulepreload" href="./js/reset-confirmation.js">
+    <link rel="modulepreload" href="./js/preset-delete-hold.js">
+    <link rel="modulepreload" href="./js/outside-dismissal.js">
     <link rel="modulepreload" href="./js/viewport-layout.js">
     <script type="module" src="./js/main.js"></script>
   </head>
@@ -118,7 +121,7 @@
                   <label for="preset-selector">edit preset</label>
                   <div class="preset-select-row">
                     <select id="preset-selector" name="preset"></select>
-                    <button id="delete-preset" class="button button-outline delete-preset" type="button" aria-label="delete selected preset" title="delete selected preset">
+                    <button id="delete-preset" class="button button-outline delete-preset" type="button" aria-label="hold for 3 seconds to delete selected preset" title="hold for 3 seconds to delete selected preset">
                       <svg class="line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>
                     </button>
                   </div>

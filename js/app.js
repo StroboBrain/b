@@ -11,6 +11,8 @@ import { PresetTiles } from './preset-tiles.js';
 import { SessionView } from './session-view.js';
 import { InstallPrompt } from './install-prompt.js';
 import { ResetConfirmation } from './reset-confirmation.js';
+import { PresetDeleteHold } from './preset-delete-hold.js';
+import { OutsideDismissal } from './outside-dismissal.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const TOGGLE_PREFERENCES = {
@@ -65,11 +67,13 @@ export class BreathingApp {
   #offlineSupport;
   #notificationTimer;
   #notificationClearTimer;
+  #notificationDismissible = false;
   #storageWarningShown = false;
   #preferences;
   #zenMode = false;
   #resetting = false;
   #resetConfirmation;
+  #presetDeleteHold;
 
   constructor({ document = globalThis.document, window = globalThis.window,
     store = new PresetStore(), engine = new BreathingEngine() } = {}) {
@@ -103,6 +107,17 @@ export class BreathingApp {
     this.#resetConfirmation = new ResetConfirmation({ document, window,
       dialog: this.#elements['reset-confirmation'], cancelButton: this.#elements['reset-cancel'],
       deleteButton: this.#elements['reset-delete'], onConfirm: () => this.#resetLocalData(),
+    });
+    this.#presetDeleteHold = new PresetDeleteHold({ document, window,
+      button: this.#elements['delete-preset'],
+      canDelete: () => !this.#resetting && this.#status === 'idle' && this.#presets.length > 2,
+      onConfirm: () => this.#deletePreset(),
+      onHint: () => this.#notify('hold delete for 3 seconds to remove this preset.'),
+    });
+    new OutsideDismissal({ document,
+      surface: () => this.#notificationDismissible && this.#elements.notification.classList.contains('is-visible')
+        ? this.#elements.notification : null,
+      onDismiss: () => this.#hideNotification(),
     });
     this.#navigation = new ZenNavigator({ window, onChange: (enabled) => {
       if (!enabled && this.#status !== 'idle') this.#stopSession();
@@ -164,24 +179,6 @@ export class BreathingApp {
     });
     ui['preset-selector'].addEventListener('change', ({ target }) => this.#selectPreset(target.value));
 
-    ui['delete-preset'].addEventListener('click', () => {
-      if (this.#status !== 'idle' || this.#presets.length <= 2) return;
-      const name = this.#editor.selected.name;
-      try {
-        if (!this.#editor.remove()) return;
-      } catch (error) {
-        if (!(error instanceof RangeError)) throw error;
-        this.#refreshPresets();
-        this.#notify(error.message);
-        return;
-      }
-      this.#populatePresets();
-      this.#syncSettings();
-      this.#render(this.#session.snapshot);
-      ui['preset-selector'].focus();
-      this.#notify(`${name} removed.`);
-    });
-
     this.#document.addEventListener('visibilitychange', () => {
       if (this.#document.hidden) this.#suspend();
     });
@@ -203,6 +200,7 @@ export class BreathingApp {
   /** Leaving the page pauses a running exercise and saves pending edits. */
   #suspend() {
     if (this.#resetting) return;
+    this.#presetDeleteHold.cancel();
     if (this.#status === 'running') this.#session.pause();
     this.#editor.flush();
   }
@@ -226,6 +224,7 @@ export class BreathingApp {
   }
 
   #refreshPresets() {
+    this.#presetDeleteHold.cancel();
     this.#durationPicker.close();
     if (!this.#editor.refresh()) return;
     this.#presetsChanged = false;
@@ -243,6 +242,7 @@ export class BreathingApp {
 
   #selectPreset(id) {
     if (this.#status !== 'idle') return;
+    this.#presetDeleteHold.cancel();
     this.#durationPicker.close();
     const adding = id === 'add-preset';
     if (adding) this.#editor.add();
@@ -255,6 +255,25 @@ export class BreathingApp {
       this.#elements['preset-name'].focus();
       this.#elements['preset-name'].select();
     }
+  }
+
+  #deletePreset() {
+    if (this.#resetting || this.#status !== 'idle' || this.#presets.length <= 2) return;
+    this.#durationPicker.close();
+    const name = this.#editor.selected.name;
+    try {
+      if (!this.#editor.remove()) return;
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      this.#refreshPresets();
+      this.#notify(error.message);
+      return;
+    }
+    this.#populatePresets();
+    this.#syncSettings();
+    this.#render(this.#session.snapshot);
+    this.#elements['preset-selector'].focus({ preventScroll: true });
+    this.#notify(`${name} removed.`, { dismissOnOutside: true });
   }
 
   #syncSettings() {
@@ -290,8 +309,8 @@ export class BreathingApp {
     }
     ui['preset-selector'].value = this.#editor.selected.id;
     ui['delete-preset'].disabled = presets.length <= 2;
-    ui['delete-preset'].title = presets.length <= 2 ? 'keep at least two presets' : 'delete selected preset';
-    ui['delete-preset'].setAttribute('aria-label', `delete ${this.#editor.selected.name}`);
+    ui['delete-preset'].title = presets.length <= 2 ? 'keep at least two presets' : 'hold for 3 seconds to delete selected preset';
+    ui['delete-preset'].setAttribute('aria-label', `hold for 3 seconds to delete ${this.#editor.selected.name}`);
   }
 
   #setPreference(key, value) {
@@ -343,6 +362,7 @@ export class BreathingApp {
   }
 
   #toggleSession() {
+    this.#presetDeleteHold.cancel();
     this.#durationPicker.close();
     const status = this.#status;
     if (status === 'running') {
@@ -368,16 +388,23 @@ export class BreathingApp {
     if (snapshot.status === 'idle') this.#offlineSupport?.applyPendingUpdate();
   }
 
-  #notify(message) {
+  #notify(message, { dismissOnOutside = false } = {}) {
     clearTimeout(this.#notificationTimer);
     clearTimeout(this.#notificationClearTimer);
     const notification = this.#elements.notification;
+    this.#notificationDismissible = dismissOnOutside;
     notification.textContent = message;
     notification.classList.add('is-visible');
-    this.#notificationTimer = setTimeout(() => {
-      notification.classList.remove('is-visible');
-      this.#notificationClearTimer = setTimeout(() => { notification.textContent = ''; }, 200);
-    }, 5000);
+    this.#notificationTimer = setTimeout(() => this.#hideNotification(), 5000);
+  }
+
+  #hideNotification() {
+    clearTimeout(this.#notificationTimer);
+    clearTimeout(this.#notificationClearTimer);
+    const notification = this.#elements.notification;
+    this.#notificationDismissible = false;
+    notification.classList.remove('is-visible');
+    this.#notificationClearTimer = setTimeout(() => { notification.textContent = ''; }, 200);
   }
 
   #registerOfflineSupport() {

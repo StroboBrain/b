@@ -1,5 +1,6 @@
 import { CONFIG_LIMITS, PHASES, validateConfig } from './breathing-engine.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
+import { OutsideDismissal } from './outside-dismissal.js';
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
@@ -23,6 +24,8 @@ export class DurationPicker {
   #sliderDrag = null;
   #pointerClick = null;
   #listeners = [];
+  #outsideDismissal;
+  #viewportBounds;
 
   constructor({ document, window, container, onChange, onCommit, canChange = () => true } = {}) {
     if (typeof document?.getElementById !== 'function' || typeof document.addEventListener !== 'function'
@@ -52,6 +55,11 @@ export class DurationPicker {
       return [phase, controls];
     }));
 
+    this.#outsideDismissal = new OutsideDismissal({ document,
+      surface: () => Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'))?.picker,
+      onDismiss: () => this.close(),
+    });
+
     this.#listen(container, 'pointerdown', (event) => {
       if (event.target.classList.contains('duration-slider')) this.#startSliderDrag(event);
       else this.#startPress(event);
@@ -69,11 +77,9 @@ export class DurationPicker {
     this.#listen(document, 'pointerup', release);
     this.#listen(document, 'pointercancel', release);
     this.#listen(container, 'lostpointercapture', release);
-    // Capture sees element scrolls too; an overflowing picker on a short screen must stay open.
-    this.#listen(document, 'scroll', ({ target }) => {
-      if (!this.#sliderDrag && !Object.values(this.#controls).some(({ picker }) => picker === target)) this.close();
-    }, true);
-    this.#listen(window, 'resize', () => { if (!this.#sliderDrag) this.close(); });
+    // Keep targets still while native section snapping settles in the page.
+    // Only a real viewport resize should move an already open picker.
+    this.#listen(window, 'resize', () => this.#positionOpenPicker());
     this.#listen(window, 'blur', () => {
       this.#finishPress();
       this.#finishSliderDrag();
@@ -110,6 +116,7 @@ export class DurationPicker {
 
   dispose() {
     this.close();
+    this.#outsideDismissal.dispose();
     for (const remove of this.#listeners) remove();
     this.#listeners = [];
   }
@@ -277,15 +284,31 @@ export class DurationPicker {
     }
     trigger.focus({ preventScroll: true });
     picker.showPopover();
-    const anchor = trigger.getBoundingClientRect();
-    const viewport = this.#window.visualViewport;
-    const left = viewport?.offsetLeft ?? 0;
-    const top = viewport?.offsetTop ?? 0;
-    const width = viewport?.width ?? this.#window.innerWidth;
-    const height = viewport?.height ?? this.#window.innerHeight;
-    picker.style.left = `${Math.max(left + 8, Math.min(anchor.left + anchor.width / 2 - picker.offsetWidth / 2, left + width - picker.offsetWidth - 8))}px`;
-    picker.style.top = `${Math.max(top + 8, Math.min(anchor.top + anchor.height / 2 - picker.offsetHeight / 2, top + height - picker.offsetHeight - 8))}px`;
+    this.#position(phase);
     const focus = increase.disabled ? this.#controls[phase].decrease : increase;
     focus.focus({ preventScroll: true });
+  }
+
+  #positionOpenPicker() {
+    if (this.#sliderDrag) return;
+    const bounds = this.#readViewport();
+    if (Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
+    const entry = Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'));
+    if (entry) this.#position(entry[0], bounds);
+  }
+
+  #readViewport() {
+    const viewport = this.#window.visualViewport;
+    return { left: viewport?.offsetLeft ?? 0, top: viewport?.offsetTop ?? 0,
+      width: viewport?.width ?? this.#window.innerWidth, height: viewport?.height ?? this.#window.innerHeight };
+  }
+
+  #position(phase, bounds = this.#readViewport()) {
+    const { value: trigger, picker } = this.#controls[phase];
+    const anchor = trigger.getBoundingClientRect();
+    const { left, top, width, height } = bounds;
+    this.#viewportBounds = bounds;
+    picker.style.left = `${Math.max(left + 8, Math.min(anchor.left + anchor.width / 2 - picker.offsetWidth / 2, left + width - picker.offsetWidth - 8))}px`;
+    picker.style.top = `${Math.max(top + 8, Math.min(anchor.top + anchor.height / 2 - picker.offsetHeight / 2, top + height - picker.offsetHeight - 8))}px`;
   }
 }

@@ -695,13 +695,32 @@ fieldset {
   flex: 1;
 }
 .delete-preset {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
   flex: 0 0 48px;
   width: 48px;
   padding: 12px;
 }
 .delete-preset svg {
+  position: relative;
   width: 20px;
   height: 20px;
+}
+.delete-preset::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--line);
+  transform: scaleY(0);
+  transform-origin: bottom;
+}
+.delete-preset.is-holding::before {
+  animation: preset-delete-fill var(--preset-delete-hold-duration) linear forwards;
+}
+@keyframes preset-delete-fill {
+  to { transform: scaleY(1); }
 }
 .timing-fields {
   margin-top: 24px;
@@ -908,9 +927,9 @@ fieldset {
 }
 /* Reset confirmation */
 .reset-dialog {
-  width: min(360px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 24px));
   max-height: calc(100dvh - 32px);
-  padding: 20px;
+  padding: 24px;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   background: var(--surface-popover);
@@ -921,12 +940,13 @@ fieldset {
 }
 .reset-dialog h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
 }
 .reset-dialog p {
   margin: 12px 0 20px;
   color: var(--text-secondary);
+  font-size: 17px;
   line-height: 1.5;
 }
 .reset-actions {
@@ -974,9 +994,10 @@ fieldset {
   border-radius: 7px;
   background: var(--paper);
   color: var(--ink);
-  font-size: var(--text-caption);
+  font-size: 18px;
+  font-weight: 500;
   line-height: 1.5;
-  padding: 14px 20px;
+  padding: 20px 24px;
   max-width: min(420px, calc(100vw - 32px));
   width: max-content;
   box-shadow: 0 5px 30px var(--shadow);
@@ -987,6 +1008,7 @@ fieldset {
 }
 .notification.is-visible {
   opacity: 1;
+  pointer-events: auto;
   transform: translate(-50%, 0);
 }
 .noscript-message {
@@ -1026,7 +1048,7 @@ fieldset {
 @media (max-width: 760px) {
   .app-shell {
     max-width: none;
-    padding: 20px 4px max(24px, env(safe-area-inset-bottom));
+    padding: 8px 4px max(16px, env(safe-area-inset-bottom));
     padding-left: calc(4px + var(--scrollbar-space));
   }
   .phase-count {
@@ -1039,10 +1061,41 @@ fieldset {
   }
 }
 
-/* Keep the compact controls and scroll-to-settings layout on mobile. */
+/* Compact mobile sections snap naturally without an extra scroll container. */
 @media (max-width: 760px), (hover: none) and (pointer: coarse) {
+  html {
+    scroll-snap-type: y mandatory;
+    scroll-padding-block-start: 8px;
+  }
+  .app-shell {
+    padding-top: 8px;
+  }
+  .practice-layout {
+    gap: 8px;
+  }
+  .practice-card {
+    padding-top: 4px;
+  }
   .practice-primary {
-    min-height: calc(100svh - 36px);
+    min-height: calc(100svh - 12px);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    scroll-margin-block-start: 4px;
+  }
+  .display-options, .settings-card {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+  .settings-card, .phase-timings, .preset-options, .display-options, .hold-options {
+    padding: 8px;
+  }
+  .preset-options, .display-options, .hold-options {
+    margin-top: 8px;
+  }
+  .install-footer {
+    margin-top: 12px;
+    gap: 8px;
+    scroll-snap-align: end;
   }
   .phase-step {
     gap: 4px;
@@ -1054,9 +1107,6 @@ fieldset {
     display: none;
   }
   #session-button {
-    margin-top: 16px;
-  }
-  .preset-options {
     margin-top: 12px;
   }
   .preset-tiles {
@@ -1073,10 +1123,48 @@ fieldset {
   .preset-timing {
     font-size: var(--text-label);
   }
+  .preset-field {
+    gap: 4px;
+  }
+  .preset-field + .preset-field {
+    margin-top: 8px;
+  }
+  .timing-fields {
+    margin-top: 12px;
+    gap: 8px;
+  }
+  .timing-field {
+    --duration-control-width: 56px;
+    padding: 8px;
+    gap: 8px;
+  }
+  .duration-button {
+    min-width: 48px;
+  }
+  .time-choices {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .time-choice {
+    min-height: 48px;
+  }
+  .hold-toggle {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    min-height: 48px;
+    padding: 0;
+    gap: 0;
+  }
+  .hold-toggle-state {
+    display: none;
+  }
+  .settings-note {
+    margin-top: 8px;
+  }
 }
-@media (max-width: 760px) {
-  .practice-primary {
-    min-height: calc(100svh - 32px);
+@media (max-width: 360px) {
+  .timing-field {
+    --duration-control-width: 48px;
   }
 }
 
@@ -1148,6 +1236,7 @@ fieldset {
 html:has(body.is-zen) {
   overflow: hidden;
   overscroll-behavior: none;
+  scroll-snap-type: none;
 }
 .is-zen {
   overscroll-behavior: none;

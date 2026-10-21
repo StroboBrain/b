@@ -1,3 +1,5 @@
+import { OutsideDismissal } from './outside-dismissal.js';
+
 const HOLD_DURATION_MS = 4000;
 
 /** A reset requires one uninterrupted pointer or keyboard hold in the modal. */
@@ -9,6 +11,7 @@ export class ResetConfirmation {
   #onConfirm;
   #hold = null;
   #listeners = [];
+  #outsideDismissal;
 
   constructor({ document, window, dialog, cancelButton, deleteButton, onConfirm } = {}) {
     if (typeof document?.addEventListener !== 'function' || typeof window?.addEventListener !== 'function'
@@ -23,6 +26,17 @@ export class ResetConfirmation {
     this.#dialog = dialog;
     this.#deleteButton = deleteButton;
     this.#onConfirm = onConfirm;
+    this.#outsideDismissal = new OutsideDismissal({ document,
+      surface: () => dialog.open ? dialog : null,
+      onDismiss: () => this.close(),
+      isInside: (event) => {
+        // A modal's backdrop retargets events to the dialog itself.
+        if (event.target !== dialog) return event.target.closest?.('dialog') === dialog;
+        const rect = dialog.getBoundingClientRect();
+        return event.clientX >= rect.left && event.clientX <= rect.left + rect.width
+          && event.clientY >= rect.top && event.clientY <= rect.top + rect.height;
+      },
+    });
     deleteButton.style.setProperty('--reset-hold-duration', `${HOLD_DURATION_MS}ms`);
     this.#listen(cancelButton, 'click', () => this.close());
     this.#listen(dialog, 'cancel', () => this.#cancelHold());
@@ -76,6 +90,7 @@ export class ResetConfirmation {
 
   dispose() {
     this.close();
+    this.#outsideDismissal.dispose();
     for (const remove of this.#listeners) remove();
     this.#listeners = [];
   }
