@@ -10,6 +10,7 @@ import { DurationPicker } from './duration-picker.js';
 import { PresetTiles } from './preset-tiles.js';
 import { SessionView } from './session-view.js';
 import { InstallPrompt } from './install-prompt.js';
+import { ResetConfirmation } from './reset-confirmation.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const TOGGLE_PREFERENCES = {
@@ -26,7 +27,9 @@ export const REQUIRED_IDS = Object.freeze([
   'phase-count', 'phase-track', 'phase-announcement', 'session-button',
   'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields', 'preset-name',
   'preset-tiles', 'preset-selector', 'delete-preset', 'preset-fields', 'settings-form', 'settings-fields', 'settings-note', 'timing-fields',
-  'zen-back', 'install-button', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
+  'zen-back', 'install-button', 'reset-local-data', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
+  'reset-confirmation', 'reset-cancel', 'reset-delete',
+  'holdIn-enabled', 'holdOut-enabled',
   ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-fine-decrease`, `${phase}-fine-increase`, `${phase}-picker`, `${phase}-picked-value`, `${phase}-slider`, `track-${phase}`]),
 ]);
 
@@ -65,6 +68,8 @@ export class BreathingApp {
   #storageWarningShown = false;
   #preferences;
   #zenMode = false;
+  #resetting = false;
+  #resetConfirmation;
 
   constructor({ document = globalThis.document, window = globalThis.window,
     store = new PresetStore(), engine = new BreathingEngine() } = {}) {
@@ -95,6 +100,10 @@ export class BreathingApp {
     new InstallPrompt({ window, button: this.#elements['install-button'],
       onUnavailable: () => this.#notify('install b from your browser menu.'),
     });
+    this.#resetConfirmation = new ResetConfirmation({ document, window,
+      dialog: this.#elements['reset-confirmation'], cancelButton: this.#elements['reset-cancel'],
+      deleteButton: this.#elements['reset-delete'], onConfirm: () => this.#resetLocalData(),
+    });
     this.#navigation = new ZenNavigator({ window, onChange: (enabled) => {
       if (!enabled && this.#status !== 'idle') this.#stopSession();
       this.#setZenMode(enabled);
@@ -112,6 +121,11 @@ export class BreathingApp {
     const ui = this.#elements;
     ui['settings-form'].addEventListener('submit', (event) => event.preventDefault());
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
+    ui['reset-local-data'].addEventListener('click', () => {
+      if (this.#resetting || this.#status !== 'idle') return;
+      this.#durationPicker.close();
+      this.#resetConfirmation.open();
+    });
     this.#document.addEventListener('click', (event) => {
       if (!this.#zenMode || !this.#preferences.fadeButtons
         || this.#status === 'paused') return;
@@ -139,6 +153,7 @@ export class BreathingApp {
       this.#syncPresetControls();
     });
     ui['preset-name'].addEventListener('change', () => {
+      if (this.#resetting) return;
       ui['preset-name'].value = this.#editor.selected.name;
       ui['preset-name'].setCustomValidity('');
       this.#editor.flush();
@@ -187,8 +202,27 @@ export class BreathingApp {
 
   /** Leaving the page pauses a running exercise and saves pending edits. */
   #suspend() {
+    if (this.#resetting) return;
     if (this.#status === 'running') this.#session.pause();
     this.#editor.flush();
+  }
+
+  #resetLocalData() {
+    if (this.#resetting || this.#status !== 'idle') return;
+    this.#durationPicker.close();
+    try {
+      this.#store.reset();
+    } catch (error) {
+      if (!(error instanceof PersistenceError)) throw error;
+      this.#notify('local data could not be reset. storage is unavailable.');
+      return;
+    }
+    this.#resetting = true;
+    this.#document.getElementById('app-shell')?.setAttribute('hidden', '');
+    this.#window.history.scrollRestoration = 'manual';
+    this.#window.history.replaceState(null, '', this.#window.location.pathname + this.#window.location.search);
+    this.#window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    this.#window.location.reload();
   }
 
   #refreshPresets() {
@@ -227,7 +261,7 @@ export class BreathingApp {
     const ui = this.#elements;
     ui['preset-name'].value = this.#editor.selected.name;
     ui['preset-name'].setCustomValidity('');
-    this.#durationPicker.render(this.#config);
+    this.#durationPicker.render(this.#config, this.#editor.selected.id);
     for (const field of PHASES) {
       const value = this.#config[field];
       ui[`track-${field}`].textContent = formatDuration(value);
@@ -277,10 +311,13 @@ export class BreathingApp {
     this.#storageWarningShown = true;
   }
 
-  /** Restores the controls; CSS derives caption, count and guide visibility from them. */
+  /** Restore controls and keep guides hidden until their saved preference is applied. */
   #syncPreferences() {
     for (const [id, preference] of Object.entries(TOGGLE_PREFERENCES)) {
       this.#elements[id].checked = this.#preferences[preference];
+    }
+    for (const guide of this.#elements['breathing-visual'].querySelectorAll('.breath-guide')) {
+      guide.toggleAttribute('hidden', !this.#preferences.showBreathGuides);
     }
     this.#cues.configure(this.#preferences);
     this.#elements['phase-track'].setAttribute('aria-hidden', String(!this.#preferences.showPhaseTimings));

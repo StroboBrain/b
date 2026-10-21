@@ -11,7 +11,7 @@
   background: var(--surface);
   font-synthesis: none;
   --ink: #0a0a0a;
-  --paper: #d0d0d0;
+  --paper: #b8b8b8;
   --muted: #aaa;
   --line: #333;
   --line-strong: #6b6b6b;
@@ -24,14 +24,14 @@
   --orb-dark: #262626;
   --orb-light: #555;
   --guide: #929292;
-  --paper-hover: #dedede;
+  --paper-hover: #c4c4c4;
   --surface-pressed: #242424;
   --surface-hover-tint: #d0d0d008;
   --orb-highlight: #d0d0d01a;
   --orb-shade: #0000002e;
   --border-selected: #c5c5c5;
   --surface-popover: #141414;
-  --knob-border: #eee;
+  --knob-border: #c4c4c4;
   --shadow: #0008;
   --shadow-deep: #000b;
   --border-notice: #888;
@@ -68,6 +68,14 @@ button, a, input, select, label {
 }
 button, label {
   touch-action: manipulation;
+}
+button, select, label, legend, .phase-track, .breathing-visual, .duration-picker {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input[type="text"], textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 button, .display-toggle, .hold-choice, .preset-tile {
   cursor: pointer;
@@ -123,10 +131,12 @@ button:disabled, .preset-tile:has(:disabled) {
   padding: 24px 32px 32px;
   padding-left: calc(32px + var(--scrollbar-space));
 }
-.install-footer:has(#install-button:not([hidden])) {
+.install-footer {
   margin-top: 24px;
+  display: grid;
+  gap: 12px;
 }
-#install-button {
+#install-button, #reset-local-data {
   width: 100%;
 }
 .practice-layout {
@@ -144,6 +154,11 @@ button:disabled, .preset-tile:has(:disabled) {
   display: flex;
   flex-direction: column;
   container-type: inline-size;
+}
+.practice-primary {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 /* Breathing animation and hold effects */
 .breathing-visual {
@@ -204,7 +219,7 @@ button:disabled, .preset-tile:has(:disabled) {
   width: calc(var(--orb-size) * var(--breath-large));
   height: calc(var(--orb-size) * var(--breath-large));
 }
-/* The display checkboxes drive visibility directly; JS only restores and saves their state. */
+/* Guide markup starts hidden; saved preferences reveal it after initialization. */
 .practice-card:has(#show-breath-guides:not(:checked)) .breath-guide {
   visibility: hidden;
 }
@@ -335,13 +350,45 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 /* Phase timing track */
 .phase-track {
+  --phase-gap: 5px;
+  --phase-index: 0;
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
-  gap: 5px;
+  gap: var(--phase-gap);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.phase-track::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  width: calc((100% - 3 * var(--phase-gap)) / 4);
+  border-radius: 5px;
+  background: var(--surface-selected);
+  box-shadow: inset 0 0 0 1px var(--border-hover);
+  transform: translateX(calc(var(--phase-index) * (100% + var(--phase-gap))));
+  opacity: 0;
+  pointer-events: none;
+}
+.phase-track:has([aria-current="step"])::before {
+  opacity: 1;
+  transition: transform .28s ease;
+}
+.phase-track:has([data-phase="holdIn"][aria-current="step"]) {
+  --phase-index: 1;
+}
+.phase-track:has([data-phase="exhale"][aria-current="step"]) {
+  --phase-index: 2;
+}
+.phase-track:has([data-phase="holdOut"][aria-current="step"]) {
+  --phase-index: 3;
 }
 .phase-step {
   display: flex;
@@ -352,13 +399,11 @@ button:disabled, .preset-tile:has(:disabled) {
   min-height: 38px;
   flex-wrap: wrap;
   row-gap: 2px;
-  font-size: var(--text-caption);
+  font-size: var(--text-body);
   color: var(--muted);
   border-radius: 5px;
 }
 .phase-step[aria-current="step"] {
-  background: var(--surface-selected);
-  box-shadow: inset 0 0 0 1px var(--border-hover);
   color: var(--paper);
 }
 .phase-step.is-skipped {
@@ -434,19 +479,28 @@ button:disabled, .preset-tile:has(:disabled) {
   gap: 6px;
 }
 .display-toggle {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
   min-width: 0;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 48px;
-  padding: 10px 6px;
+  padding: 10px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--ink);
   color: var(--text-secondary);
   font-size: var(--text-label);
-  text-align: center;
+  text-align: left;
+}
+.display-toggle > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hold-toggle {
+  color: var(--text-control);
+  gap: 8px;
+  padding: 8px 12px;
 }
 .display-toggle:has(:disabled) {
   cursor: default;
@@ -455,30 +509,34 @@ button:disabled, .preset-tile:has(:disabled) {
 .toggle-mark {
   appearance: none;
   margin: 0;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 15px;
-  height: 15px;
-  border: 1px solid var(--border-hover);
-  border-radius: 3px;
+  display: block;
+  width: 36px;
+  height: 22px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-pressed);
+  cursor: inherit;
+  transition: background-color .18s, border-color .18s;
+}
+.toggle-mark::after {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-control);
+  transition: transform .18s, background-color .18s;
 }
 .toggle-mark:checked {
   background: var(--paper);
   border-color: var(--paper);
 }
 .toggle-mark:checked::after {
-  content: "";
-  width: 7px;
-  height: 4px;
-  border-left: 2px solid var(--ink);
-  border-bottom: 2px solid var(--ink);
-  transform: translateY(-1px) rotate(-45deg);
+  background: var(--ink);
+  transform: translateX(14px);
 }
 .settings-card {
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
   container: preset-editor / inline-size;
 }
 fieldset {
@@ -487,7 +545,7 @@ fieldset {
   margin: 0;
   min-width: 0;
 }
-.phase-timings, .preset-options, .display-options, .hold-options {
+.settings-card, .phase-timings, .preset-options, .display-options, .hold-options {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -651,7 +709,9 @@ fieldset {
   gap: 22px;
 }
 .timing-field {
+  --duration-control-width: 72px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--duration-control-width);
   gap: 12px;
   min-width: 0;
   padding: 12px;
@@ -660,11 +720,15 @@ fieldset {
 }
 .timing-field.is-off {
   border-style: dashed;
+  opacity: .7;
 }
 .timing-label {
-  display: flex;
-  justify-content: flex-end;
+  display: block;
   min-width: 0;
+}
+.timing-field > .time-choices {
+  grid-column: 1;
+  grid-row: 1;
 }
 .label-detail {
   font-size: var(--text-caption);
@@ -672,20 +736,28 @@ fieldset {
 }
 /* Duration picker */
 .duration-button {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  width: var(--duration-control-width);
+  height: var(--duration-control-width);
   min-width: 60px;
   min-height: 48px;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid var(--line-strong);
   border-radius: 5px;
-  background: var(--ink);
+  background: var(--surface-popover);
   color: var(--text-control);
-  font-size: var(--text-input);
+  font-size: 20px;
   font-variant-numeric: tabular-nums;
-  user-select: none;
+  transition: background-color .18s, border-color .18s;
 }
 .duration-button:hover:not(:disabled), .duration-button[aria-expanded="true"] {
   background: var(--surface-selected);
   border-color: var(--muted);
+}
+.duration-button:active:not(:disabled) {
+  background: var(--surface-pressed);
 }
 /* Native popovers sit above the page without occupying space in the timing boxes. */
 .duration-picker {
@@ -703,7 +775,6 @@ fieldset {
   box-shadow: 0 8px 32px var(--shadow-deep);
   overflow: auto;
   overscroll-behavior: contain;
-  user-select: none;
 }
 .duration-picker:popover-open {
   display: flex;
@@ -734,6 +805,10 @@ fieldset {
   gap: 8px;
 }
 .duration-step {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
   min-height: 48px;
   padding: 8px;
   border: 1px solid var(--line-strong);
@@ -741,7 +816,12 @@ fieldset {
   background: var(--ink);
   color: var(--paper);
   font-size: 24px;
+  line-height: 1;
   touch-action: none;
+}
+.duration-step .line-icon {
+  width: 24px;
+  height: 24px;
 }
 .duration-step:hover:not(:disabled) {
   background: var(--surface-pressed);
@@ -826,6 +906,56 @@ fieldset {
   background: var(--surface-selected);
   color: var(--paper);
 }
+/* Reset confirmation */
+.reset-dialog {
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-popover);
+  color: var(--paper);
+}
+.reset-dialog::backdrop {
+  background: var(--shadow-deep);
+}
+.reset-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+.reset-dialog p {
+  margin: 12px 0 20px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.reset-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.reset-delete {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+}
+.reset-delete::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--line);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.reset-delete.is-holding::before {
+  animation: reset-delete-fill var(--reset-hold-duration) linear forwards;
+}
+.reset-delete > span {
+  position: relative;
+}
+@keyframes reset-delete-fill {
+  to { transform: scaleX(1); }
+}
 /* Feedback messages */
 .settings-note {
   margin: 14px 0 0;
@@ -866,6 +996,12 @@ fieldset {
 }
 
 /* Responsive layout */
+@container preset-editor (max-width: 300px) {
+  .hold-toggle {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+}
 @container (min-width: 480px) {
   .display-controls {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -883,9 +1019,6 @@ fieldset {
     padding-right: 24px;
     padding-left: calc(24px + var(--scrollbar-space));
   }
-  .settings-card {
-    padding: 22px;
-  }
   .phase-step {
     gap: 4px;
   }
@@ -899,19 +1032,51 @@ fieldset {
   .phase-count {
     font-size: 60px;
   }
-  .phase-step {
-    gap: 6px;
-  }
 }
 @media (max-width: 360px) {
-  .settings-card {
-    padding: 18px;
+  .hold-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Keep the compact controls and scroll-to-settings layout on mobile. */
+@media (max-width: 760px), (hover: none) and (pointer: coarse) {
+  .practice-primary {
+    min-height: calc(100svh - 36px);
   }
   .phase-step {
     gap: 4px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    font-size: clamp(11px, 3.5cqi, 14px);
   }
-  .hold-choices {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .phase-dot {
+    display: none;
+  }
+  #session-button {
+    margin-top: 16px;
+  }
+  .preset-options {
+    margin-top: 12px;
+  }
+  .preset-tiles {
+    gap: 8px;
+  }
+  .preset-tile {
+    gap: 4px;
+    min-height: 72px;
+    padding: 10px;
+  }
+  .preset-name {
+    font-size: var(--text-input);
+  }
+  .preset-timing {
+    font-size: var(--text-label);
+  }
+}
+@media (max-width: 760px) {
+  .practice-primary {
+    min-height: calc(100svh - 32px);
   }
 }
 

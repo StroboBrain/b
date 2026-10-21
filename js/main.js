@@ -1,13 +1,17 @@
 import { BreathingApp } from './app.js';
 import { ViewportLayout } from './viewport-layout.js';
 
+const appShell = document.getElementById('app-shell');
+
 try {
-  new ViewportLayout();
+  if (!appShell) throw new Error('index.html is missing required id: app-shell');
   new BreathingApp();
+  // Restore settings and render before exposing any default markup. Complete
+  // viewport measurement in this same task, before the browser can paint.
+  appShell.hidden = false;
+  new ViewportLayout();
 } catch (error) {
-  // A broken build must not leave a silently disabled Start button.
-  const message = 'the app could not start. reload the page.';
-  document.getElementById('phase-caption')?.replaceChildren(message);
-  document.getElementById('phase-announcement')?.replaceChildren(message);
+  if (appShell) appShell.hidden = true;
+  document.getElementById('startup-error')?.removeAttribute('hidden');
   throw error;
 }

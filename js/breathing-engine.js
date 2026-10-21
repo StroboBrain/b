@@ -1,9 +1,9 @@
 /**
  * @typedef {Object} BreathingConfig
- * @property {number} inhale Seconds in tenths, 1–60.
- * @property {number} holdIn Seconds in tenths, 0–60.
- * @property {number} exhale Seconds in tenths, 1–60.
- * @property {number} holdOut Seconds in tenths, 0–60.
+ * @property {number} inhale Seconds in tenths, 1–99.
+ * @property {number} holdIn Seconds in tenths, 0–99.
+ * @property {number} exhale Seconds in tenths, 1–99.
+ * @property {number} holdOut Seconds in tenths, 0–99.
  */
 
 export const DEFAULT_CONFIG = Object.freeze({
@@ -15,10 +15,10 @@ export const DEFAULT_CONFIG = Object.freeze({
 
 /** Inclusive [minimum, maximum] seconds for each phase. */
 export const CONFIG_LIMITS = Object.freeze({
-  inhale: Object.freeze([1, 60]),
-  holdIn: Object.freeze([0, 60]),
-  exhale: Object.freeze([1, 60]),
-  holdOut: Object.freeze([0, 60]),
+  inhale: Object.freeze([1, 99]),
+  holdIn: Object.freeze([0, 99]),
+  exhale: Object.freeze([1, 99]),
+  holdOut: Object.freeze([0, 99]),
 });
 
 /** The four phases in cycle order; also the configuration's field names. */

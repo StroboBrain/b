@@ -3,6 +3,7 @@ import { formatDuration, phaseDescription, spokenDuration } from './phase-labels
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
+const SLIDER_MAX_SECONDS = 20;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls. Each pointer
@@ -15,8 +16,11 @@ export class DurationPicker {
   #onCommit;
   #canChange;
   #values;
+  #presetId;
+  #lastHoldDurations = new Map();
   #dirty = false;
   #press = null;
+  #sliderDrag = null;
   #pointerClick = null;
   #listeners = [];
 
@@ -40,24 +44,40 @@ export class DurationPicker {
         throw new Error(`DurationPicker is missing controls for ${phase}.`);
       }
       controls.choices = [...container.querySelectorAll(`.time-choice[data-field="${phase}"]`)];
+      if (phase === 'holdIn' || phase === 'holdOut') {
+        controls.enabled = document.getElementById(`${phase}-enabled`);
+        controls.state = controls.enabled?.closest('.hold-toggle')?.querySelector('.hold-toggle-state');
+        if (!controls.enabled || !controls.state) throw new Error(`DurationPicker is missing the hold switch for ${phase}.`);
+      }
       return [phase, controls];
     }));
 
-    this.#listen(container, 'pointerdown', (event) => this.#startPress(event));
+    this.#listen(container, 'pointerdown', (event) => {
+      if (event.target.classList.contains('duration-slider')) this.#startSliderDrag(event);
+      else this.#startPress(event);
+    });
     this.#listen(container, 'click', (event) => this.#click(event));
     this.#listen(container, 'input', (event) => this.#slide(event));
     this.#listen(container, 'change', (event) => {
       if (event.target.classList.contains('duration-slider')) this.#commit();
+      else if (event.target.classList.contains('hold-enabled')) this.#toggleHold(event.target);
     });
-    this.#listen(document, 'pointerup', (event) => this.#finishPress(event.pointerId));
-    this.#listen(document, 'pointercancel', (event) => this.#finishPress(event.pointerId));
-    this.#listen(container, 'lostpointercapture', (event) => this.#finishPress(event.pointerId));
+    const release = (event) => {
+      this.#finishPress(event.pointerId);
+      this.#finishSliderDrag(event.pointerId);
+    };
+    this.#listen(document, 'pointerup', release);
+    this.#listen(document, 'pointercancel', release);
+    this.#listen(container, 'lostpointercapture', release);
     // Capture sees element scrolls too; an overflowing picker on a short screen must stay open.
     this.#listen(document, 'scroll', ({ target }) => {
-      if (!Object.values(this.#controls).some(({ picker }) => picker === target)) this.close();
+      if (!this.#sliderDrag && !Object.values(this.#controls).some(({ picker }) => picker === target)) this.close();
     }, true);
-    this.#listen(window, 'resize', () => this.close());
-    this.#listen(window, 'blur', () => this.#finishPress());
+    this.#listen(window, 'resize', () => { if (!this.#sliderDrag) this.close(); });
+    this.#listen(window, 'blur', () => {
+      this.#finishPress();
+      this.#finishSliderDrag();
+    });
     this.#listen(document, 'visibilitychange', () => { if (document.hidden) this.close(); });
     for (const controls of Object.values(this.#controls)) {
       this.#listen(controls.picker, 'toggle', () => {
@@ -65,19 +85,23 @@ export class DurationPicker {
         controls.value.setAttribute('aria-expanded', String(open));
         if (!open) {
           this.#finishPress();
+          this.#finishSliderDrag();
           this.#commit();
         }
       });
     }
   }
 
-  render(config) {
+  /** The preset key scopes remembered hold durations to this visit and preset. */
+  render(config, presetId) {
     this.#values = validateConfig(config);
+    this.#presetId = presetId;
     for (const phase of PHASES) this.#renderValue(phase);
   }
 
   close() {
     this.#finishPress();
+    this.#finishSliderDrag();
     for (const { picker } of Object.values(this.#controls)) {
       if (picker.matches(':popover-open')) picker.hidePopover();
     }
@@ -137,6 +161,23 @@ export class DurationPicker {
     press.timer = this.#window.setTimeout(repeat, REPEAT_DELAY_MS);
   }
 
+  #startSliderDrag(event) {
+    const slider = event.target;
+    if (event.button !== 0 || event.isPrimary === false || slider.matches(':disabled') || !this.#canChange()) return;
+    this.#finishPress();
+    this.#sliderDrag = { slider, pointerId: event.pointerId };
+    // Keep the whole gesture on the slider, including overshooting either end.
+    slider.setPointerCapture?.(event.pointerId);
+  }
+
+  #finishSliderDrag(pointerId) {
+    const drag = this.#sliderDrag;
+    if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return;
+    this.#sliderDrag = null;
+    if (drag.slider.hasPointerCapture?.(drag.pointerId)) drag.slider.releasePointerCapture(drag.pointerId);
+    this.#commit();
+  }
+
   #slide(event) {
     const slider = event.target;
     const phase = slider.dataset.field;
@@ -145,8 +186,19 @@ export class DurationPicker {
       this.#renderValue(phase);
       return;
     }
-    const value = this.#clamp(phase, Number(slider.value));
+    const value = this.#clamp(phase, Math.min(SLIDER_MAX_SECONDS, Number(slider.value)));
     if (Number.isFinite(value)) this.#setValue(phase, value);
+  }
+
+  #toggleHold(toggle) {
+    const phase = toggle.dataset.field;
+    if (!this.#values || this.#controls[phase]?.enabled !== toggle) return;
+    if (toggle.matches(':disabled') || !this.#canChange()) {
+      this.#renderValue(phase);
+      return;
+    }
+    this.#setValue(phase, toggle.checked ? this.#lastHoldDurations.get(this.#presetId)?.[phase] ?? 4 : 0);
+    this.#commit();
   }
 
   #finishPress(pointerId) {
@@ -193,9 +245,20 @@ export class DurationPicker {
     controls.value.textContent = duration;
     controls.value.setAttribute('aria-label', `adjust ${phaseDescription(phase)} duration, ${spokenDuration(value)}`);
     controls.value.closest('.timing-field').classList.toggle('is-off', value === 0);
+    if (controls.enabled) {
+      controls.enabled.checked = value > 0;
+      controls.state.textContent = value > 0 ? 'on' : 'off';
+      if (value > 0) {
+        const durations = this.#lastHoldDurations.get(this.#presetId) ?? {};
+        durations[phase] = value;
+        this.#lastHoldDurations.set(this.#presetId, durations);
+      }
+    }
     controls['picked-value'].value = duration;
-    controls.slider.value = String(value);
-    controls.slider.setAttribute('aria-valuetext', spokenDuration(value));
+    // The slider covers shorter durations; buttons retain the full phase value.
+    const sliderValue = Math.min(value, SLIDER_MAX_SECONDS);
+    controls.slider.value = String(sliderValue);
+    controls.slider.setAttribute('aria-valuetext', spokenDuration(sliderValue));
     const [minimum, maximum] = CONFIG_LIMITS[phase];
     controls.decrease.disabled = value === minimum;
     controls.increase.disabled = value === maximum;

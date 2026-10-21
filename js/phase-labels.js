@@ -28,12 +28,12 @@ export function spokenDuration(value) {
   return seconds === 0 ? 'off' : `${seconds} seconds`;
 }
 
-/** Accept the same 0–60 second tenths used by validated breathing configurations. */
+/** Accept the same 0–99 second tenths used by validated breathing configurations. */
 function durationSeconds(value) {
   if (typeof value !== 'number') throw new TypeError('A duration must be a number.');
-  if (!Number.isFinite(value) || value < 0 || value > 60
+  if (!Number.isFinite(value) || value < 0 || value > 99
     || Math.abs(value * 10 - Math.round(value * 10)) > 1e-8) {
-    throw new RangeError('A duration must be in steps of 0.1 from 0 to 60.');
+    throw new RangeError('A duration must be in steps of 0.1 from 0 to 99.');
   }
   return Math.round(value * 10) / 10;
 }

@@ -188,6 +188,18 @@ export class PresetStore {
     return { ...normalizedPreferences };
   }
 
+  /** Remove this app's saved presets, selection and preferences only. */
+  reset() {
+    try {
+      if (!this.#storage) throw new Error('Local storage is unavailable.');
+      for (const key of [PRESET_OVERRIDES_KEY, SELECTION_KEY, PREFERENCES_KEY]) {
+        this.#storage.removeItem(key);
+      }
+    } catch (cause) {
+      throw new PersistenceError(cause);
+    }
+  }
+
   #read(key, strict) {
     let raw;
     try {
