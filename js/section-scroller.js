@@ -1,7 +1,7 @@
 const FLICK_DISTANCE_PX = 32;
 const FLICK_SPEED_PX_MS = 0.2;
-const FLICK_MAX_MS = 450;
 const WHEEL_DISTANCE_PX = 48;
+const VELOCITY_WINDOW_MS = 100;
 const SETTLE_MS = 140;
 const TRANSITION_MIN_MS = 850;
 const TRANSITION_PAGE_MS = 1700;
@@ -69,13 +69,15 @@ export class SectionScroller {
       this.#pendingOrigin = null;
       this.#window.clearTimeout(this.#settleTimer);
       const { clientX: x, clientY: y } = event.touches[0];
-      this.#gesture = { ...this.#origin(), x, y, lastX: x, lastY: y, started: this.#eventTime(event) };
+      this.#gesture = { ...this.#origin(), x, y, lastX: x, lastY: y,
+        samples: [{ position: -y, time: this.#eventTime(event) }] };
     }, { passive: true });
     this.#listen(document, 'touchmove', event => {
       if (!this.#gesture) return;
       if (event.touches.length !== 1) { this.#interrupt(); return; }
       this.#gesture.lastX = event.touches[0].clientX;
       this.#gesture.lastY = event.touches[0].clientY;
+      this.#sampleVelocity(this.#gesture.samples, -this.#gesture.lastY, this.#eventTime(event));
     }, { passive: true });
     this.#listen(document, 'touchend', event => {
       this.#touchActive = event.touches.length > 0;
@@ -86,13 +88,13 @@ export class SectionScroller {
       const delta = gesture.y - (touch?.clientY ?? gesture.lastY);
       const sideways = Math.abs(gesture.x - (touch?.clientX ?? gesture.lastX));
       if (Math.abs(delta) < 8 || sideways >= Math.abs(delta)) { this.#settle(gesture, 0); return; }
-      const elapsed = Math.max(1, this.#eventTime(event) - gesture.started);
-      const flick = Math.abs(delta) >= FLICK_DISTANCE_PX && elapsed <= FLICK_MAX_MS
-        && Math.abs(delta) / elapsed >= FLICK_SPEED_PX_MS;
+      const velocity = this.#sampleVelocity(gesture.samples, -(touch?.clientY ?? gesture.lastY), this.#eventTime(event));
+      const flick = Math.abs(delta) >= FLICK_DISTANCE_PX && Math.sign(velocity) === Math.sign(delta)
+        && Math.abs(velocity) >= FLICK_SPEED_PX_MS;
       const target = this.#destination(gesture, delta, flick);
       if (target === null) { this.#settle(gesture, delta); return; }
       if (event.cancelable) event.preventDefault();
-      this.#animate(target, delta / elapsed);
+      this.#animate(target, velocity);
     }, { passive: false });
     this.#listen(document, 'touchcancel', event => {
       this.#touchActive = event.touches.length > 0;
@@ -127,6 +129,23 @@ export class SectionScroller {
   #eventTime(event) {
     // Native timestamps preserve the user's gesture speed when event delivery is delayed.
     return Number.isFinite(event.timeStamp) ? event.timeStamp : this.#window.performance.now();
+  }
+
+  #sampleVelocity(samples, position, time) {
+    const previous = samples.at(-1);
+    if (time < previous.time) return 0;
+    if (time === previous.time) previous.position = position;
+    else samples.push({ position, time });
+    const cutoff = time - VELOCITY_WINDOW_MS;
+    while (samples.length > 2 && samples[1].time <= cutoff) samples.shift();
+    const first = samples[0], next = samples[1];
+    const start = Math.max(first.time, cutoff);
+    // Interpolate the window's leading edge so event frequency cannot change
+    // the measured strength. A pause before release naturally reduces it to zero.
+    const from = next && start > first.time
+      ? first.position + (next.position - first.position) * (start - first.time) / (next.time - first.time)
+      : first.position;
+    return (position - from) / Math.max(16, time - start);
   }
 
   #resize() {
@@ -213,25 +232,26 @@ export class SectionScroller {
     const now = this.#eventTime(event);
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.#window.innerHeight : 1);
     if (!this.#wheel || Math.sign(this.#wheel.delta) !== Math.sign(delta)) {
-      this.#wheel = { ...this.#origin(), delta: 0, started: now, ended: now };
+      this.#wheel = { ...this.#origin(), delta: 0, samples: [{ position: 0, time: now - 40 }] };
     }
     this.#wheel.delta += delta;
-    this.#wheel.ended = now;
+    this.#wheel.velocity = this.#sampleVelocity(this.#wheel.samples, this.#wheel.delta, now);
     this.#window.clearTimeout(this.#wheelTimer);
     this.#wheelTimer = this.#window.setTimeout(() => {
       const gesture = this.#wheel;
       this.#wheel = null;
       if (!gesture || !this.#canNavigate()) return;
-      const elapsed = Math.max(16, gesture.ended - gesture.started);
-      const flick = Math.abs(gesture.delta) >= WHEEL_DISTANCE_PX && elapsed <= FLICK_MAX_MS
-        && Math.abs(gesture.delta) / elapsed >= FLICK_SPEED_PX_MS;
+      const flick = Math.abs(gesture.delta) >= WHEEL_DISTANCE_PX
+        && Math.abs(gesture.velocity) >= FLICK_SPEED_PX_MS;
       const target = this.#destination(gesture, gesture.delta, flick);
       if (target === null) this.#settle(gesture, gesture.delta);
-      else this.#animate(target);
+      // The wheel has already settled: ease from rest, but retain its strength
+      // when choosing how quickly to travel to the page.
+      else this.#animate(target, 0, Math.abs(gesture.velocity));
     }, SETTLE_MS);
   }
 
-  #animate(target, releaseVelocity = 0) {
+  #animate(target, releaseVelocity = 0, inputSpeed = Math.abs(releaseVelocity)) {
     this.#cancelAnimation();
     this.#pendingOrigin = null;
     this.#window.clearTimeout(this.#settleTimer);
@@ -245,22 +265,26 @@ export class SectionScroller {
       this.#cancelAnimation();
       return;
     }
-    // Longer journeys get more time, while a small remaining gap settles promptly.
+    // Strength changes continuously rather than selecting a fixed animation.
+    // A light gesture keeps the long glide; a strong one carries more momentum.
+    const strength = inputSpeed / (inputSpeed + 0.8);
     const duration = Math.min(TRANSITION_MAX_MS, Math.max(TRANSITION_MIN_MS,
-      TRANSITION_PAGE_MS * Math.sqrt(Math.abs(target - from) / this.#window.innerHeight)));
+      TRANSITION_PAGE_MS * Math.sqrt(Math.abs(target - from) / this.#window.innerHeight)
+        * (1 - 0.5 * strength ** 2)));
     const distance = target - from;
-    // Carry the swipe into a monotonic glide, capping a sharp flick's release
-    // speed at the journey's average so it cannot cause a sudden fast launch.
-    const velocity = Math.max(0, Math.min(1, releaseVelocity * duration / distance));
+    // This bound keeps the curve monotonic while allowing a stronger release
+    // to carry proportionally more speed into the movement.
+    const velocity = Math.max(0, Math.min(2, releaseVelocity * duration / distance));
     const animation = { from, target, duration, start: this.#window.performance.now(), frame: null };
     this.#animation = animation;
     const tick = now => {
       if (this.#animation !== animation) return;
       if (!this.#canNavigate()) { this.#cancelAnimation(); return; }
       const progress = Math.min(1, Math.max(0, (now - animation.start) / animation.duration));
-      // Start at the release speed, then reach zero velocity and acceleration at the end.
-      const eased = progress ** 3 * (10 + progress * (-15 + 6 * progress))
-        + velocity * progress * (1 - progress) ** 3 * (1 + 3 * progress);
+      // Match the release speed and ease to rest with zero acceleration and
+      // jerk at both ends, so the handoff and the landing feel continuous.
+      const eased = progress ** 4 * (35 + progress * (-84 + progress * (70 - 20 * progress)))
+        + velocity * progress * (1 - progress) ** 4 * (1 + 4 * progress + 10 * progress ** 2);
       const position = from + distance * eased;
       // Chrome may deliver one final native momentum frame after touchend. Never
       // pull back against it while the glide catches up.
