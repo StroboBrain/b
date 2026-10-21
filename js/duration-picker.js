@@ -1,6 +1,7 @@
 import { CONFIG_LIMITS, PHASES, validateConfig } from './breathing-engine.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 import { OutsideDismissal } from './outside-dismissal.js';
+import { visibleViewport } from './viewport-layout.js';
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
@@ -8,19 +9,17 @@ const SLIDER_MAX_SECONDS = 20;
 const MIN_LEFT_PICKER_WIDTH = 200;
 
 /** Timing controls only. The caller owns editing policy and persistence.
- * Render a validated configuration before using the controls. Each pointer
- * gesture commits once; dismissing the picker also commits pending changes.
+ * Render a validated configuration before using the controls; every accepted
+ * edit is reported through onChange.
  */
 export class DurationPicker {
   #window;
   #controls;
   #onChange;
-  #onCommit;
   #canChange;
   #values;
   #presetId;
   #lastHoldDurations = new Map();
-  #dirty = false;
   #press = null;
   #sliderDrag = null;
   #pointerClick = null;
@@ -28,18 +27,17 @@ export class DurationPicker {
   #outsideDismissal;
   #viewportBounds;
 
-  constructor({ document, window, container, onChange, onCommit, canChange = () => true } = {}) {
+  constructor({ document, window, container, onChange, canChange = () => true } = {}) {
     if (typeof document?.getElementById !== 'function' || typeof document.addEventListener !== 'function'
       || typeof window?.addEventListener !== 'function' || typeof window.setTimeout !== 'function'
       || typeof window.clearTimeout !== 'function' || typeof container?.addEventListener !== 'function') {
       throw new TypeError('DurationPicker requires a document, window and timing container.');
     }
-    if ([onChange, onCommit, canChange].some((callback) => typeof callback !== 'function')) {
-      throw new TypeError('DurationPicker requires change, commit and editing callbacks.');
+    if ([onChange, canChange].some((callback) => typeof callback !== 'function')) {
+      throw new TypeError('DurationPicker requires change and editing callbacks.');
     }
     this.#window = window;
     this.#onChange = onChange;
-    this.#onCommit = onCommit;
     this.#canChange = canChange;
     this.#controls = Object.fromEntries(PHASES.map((phase) => {
       const controls = Object.fromEntries(['value', 'picker', 'picked-value', 'decrease', 'increase', 'slider', 'fine-decrease', 'fine-increase']
@@ -68,8 +66,7 @@ export class DurationPicker {
     this.#listen(container, 'click', (event) => this.#click(event));
     this.#listen(container, 'input', (event) => this.#slide(event));
     this.#listen(container, 'change', (event) => {
-      if (event.target.classList.contains('duration-slider')) this.#commit();
-      else if (event.target.classList.contains('hold-enabled')) this.#toggleHold(event.target);
+      if (event.target.classList.contains('hold-enabled')) this.#toggleHold(event.target);
     });
     const release = (event) => {
       this.#finishPress(event.pointerId);
@@ -93,7 +90,6 @@ export class DurationPicker {
         if (!open) {
           this.#finishPress();
           this.#finishSliderDrag();
-          this.#commit();
         }
       });
     }
@@ -112,7 +108,6 @@ export class DurationPicker {
     for (const { picker } of Object.values(this.#controls)) {
       if (picker.matches(':popover-open')) picker.hidePopover();
     }
-    this.#commit();
   }
 
   dispose() {
@@ -136,7 +131,6 @@ export class DurationPicker {
       this.#open(phase);
     } else if (button.classList.contains('time-choice')) {
       this.#setValue(phase, Number(button.dataset.value));
-      this.#commit();
     } else if (button.classList.contains('duration-step')) {
       // A pointer press already changed the value; keyboard/AT clicks have no pointer.
       if (event.detail !== 0 && this.#pointerClick === button) {
@@ -144,7 +138,6 @@ export class DurationPicker {
         return;
       }
       this.#step(button);
-      this.#commit();
     }
   }
 
@@ -183,7 +176,6 @@ export class DurationPicker {
     if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return;
     this.#sliderDrag = null;
     if (drag.slider.hasPointerCapture?.(drag.pointerId)) drag.slider.releasePointerCapture(drag.pointerId);
-    this.#commit();
   }
 
   #slide(event) {
@@ -206,7 +198,6 @@ export class DurationPicker {
       return;
     }
     this.#setValue(phase, toggle.checked ? this.#lastHoldDurations.get(this.#presetId)?.[phase] ?? 4 : 0);
-    this.#commit();
   }
 
   #finishPress(pointerId) {
@@ -215,7 +206,6 @@ export class DurationPicker {
     this.#press = null;
     this.#window.clearTimeout(press.timer);
     if (press.button.hasPointerCapture?.(press.pointerId)) press.button.releasePointerCapture(press.pointerId);
-    this.#commit();
   }
 
   #step(button) {
@@ -233,16 +223,9 @@ export class DurationPicker {
   #setValue(phase, value) {
     if (!this.#values || this.#values[phase] === value) return false;
     this.#values = validateConfig({ ...this.#values, [phase]: value });
-    this.#dirty = true;
     this.#renderValue(phase);
     this.#onChange(phase, value);
     return true;
-  }
-
-  #commit() {
-    if (!this.#dirty) return;
-    this.#dirty = false;
-    this.#onCommit();
   }
 
   #renderValue(phase) {
@@ -292,19 +275,13 @@ export class DurationPicker {
 
   #positionOpenPicker() {
     if (this.#sliderDrag) return;
-    const bounds = this.#readViewport();
+    const bounds = visibleViewport(this.#window);
     if (Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
     const entry = Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'));
     if (entry) this.#position(entry[0], bounds);
   }
 
-  #readViewport() {
-    const viewport = this.#window.visualViewport;
-    return { left: viewport?.offsetLeft ?? 0, top: viewport?.offsetTop ?? 0,
-      width: viewport?.width ?? this.#window.innerWidth, height: viewport?.height ?? this.#window.innerHeight };
-  }
-
-  #position(phase, bounds = this.#readViewport()) {
+  #position(phase, bounds = visibleViewport(this.#window)) {
     const { value: trigger, picker } = this.#controls[phase];
     const anchor = trigger.getBoundingClientRect();
     const { left, top, width, height } = bounds;

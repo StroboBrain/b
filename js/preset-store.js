@@ -58,7 +58,8 @@ function defaultStorage() {
   }
 }
 
-function validateName(name) {
+/** @returns {string} The trimmed name. @throws {TypeError|RangeError} Unless it has 1–32 characters. */
+export function validatePresetName(name) {
   if (typeof name !== 'string') {
     throw new TypeError('Give your preset a name.');
   }
@@ -128,12 +129,13 @@ export class PresetStore {
     return presetsFromOverrides(this.#readOverrides(false));
   }
 
-  /** Delete any preset, including built-ins, while keeping at least two available. */
+  /** Delete any preset, including built-ins, while keeping at least two available.
+   * A preset that another tab already deleted stays deleted: the last save wins. */
   deletePreset(id) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
     const previous = this.#readOverrides(true);
     const presets = presetsFromOverrides(previous);
-    if (!presets.some((preset) => preset.id === id)) throw new RangeError('Choose an available preset.');
+    if (!presets.some((preset) => preset.id === id)) return;
     if (presets.length <= 2) throw new RangeError('Keep at least two presets.');
     const overrides = previous.filter((preset) => preset.id !== id);
     if (findBase(id)) overrides.push({ id, deleted: true });
@@ -143,7 +145,7 @@ export class PresetStore {
   /** Save an added preset or edit a built-in; unchanged built-ins store no override. */
   savePreset(id, name, config) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
-    const normalizedName = validateName(name);
+    const normalizedName = validatePresetName(name);
     const normalizedConfig = validateConfig(config);
     const base = findBase(id);
     const preset = { id, name: normalizedName, config: normalizedConfig };
@@ -167,12 +169,9 @@ export class PresetStore {
     return this.listPresets().some((preset) => preset.id === id) ? id : null;
   }
 
-  /** Save the selected preset ID. */
+  /** Save the selected preset ID; loadSelection() ignores one that is no longer available. */
   saveSelection(id) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
-    if (!presetsFromOverrides(this.#readOverrides(true)).some((preset) => preset.id === id)) {
-      throw new RangeError('Choose an available preset.');
-    }
     this.#write(SELECTION_KEY, id);
     return id;
   }
@@ -192,20 +191,24 @@ export class PresetStore {
   /** Remove this app's saved presets, selection and preferences only. */
   reset() {
     try {
-      if (!this.#storage) throw new Error('Local storage is unavailable.');
+      const storage = this.#requireStorage();
       for (const key of [PRESET_OVERRIDES_KEY, SELECTION_KEY, PREFERENCES_KEY]) {
-        this.#storage.removeItem(key);
+        storage.removeItem(key);
       }
     } catch (cause) {
       throw new PersistenceError(cause);
     }
   }
 
+  #requireStorage() {
+    if (!this.#storage) throw new Error('Local storage is unavailable.');
+    return this.#storage;
+  }
+
   #read(key, strict) {
     let raw;
     try {
-      if (!this.#storage) throw new Error('Local storage is unavailable.');
-      raw = this.#storage.getItem(key);
+      raw = this.#requireStorage().getItem(key);
     } catch (cause) {
       if (strict) throw new PersistenceError(cause);
       return null;
@@ -226,7 +229,7 @@ export class PresetStore {
       if ((!findBase(entry?.id) && !isAddedId(entry?.id)) || ids.has(entry.id)) continue;
       try {
         overrides.push(findBase(entry.id) && entry.deleted === true ? { id: entry.id, deleted: true }
-          : { id: entry.id, name: validateName(entry.name), config: validateConfig(entry.config) });
+          : { id: entry.id, name: validatePresetName(entry.name), config: validateConfig(entry.config) });
         ids.add(entry.id);
       } catch {
         // A damaged edit must not replace a valid preset or hide other edits.
@@ -244,8 +247,7 @@ export class PresetStore {
 
   #write(key, value) {
     try {
-      if (!this.#storage) throw new Error('Local storage is unavailable.');
-      this.#storage.setItem(key, JSON.stringify(value));
+      this.#requireStorage().setItem(key, JSON.stringify(value));
     } catch (cause) {
       throw new PersistenceError(cause);
     }

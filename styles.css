@@ -743,8 +743,6 @@ fieldset {
   background: var(--ink);
   color: var(--text-control);
   font-size: var(--text-input);
-}
-.preset-field :is(input[type="text"], select) {
   text-transform: none;
 }
 .preset-select-row {

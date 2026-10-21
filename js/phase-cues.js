@@ -19,7 +19,7 @@ export class PhaseCues {
     if (window.AudioContext != null && typeof window.AudioContext !== 'function') {
       throw new TypeError('AudioContext must be a constructor when supported.');
     }
-    this.#AudioContext = window?.AudioContext;
+    this.#AudioContext = window.AudioContext;
     this.#document = document;
   }
 
@@ -34,7 +34,7 @@ export class PhaseCues {
 
   /** Call synchronously from the start/resume gesture, before updating the session. */
   unlock() {
-    if (!this.#sound || !this.soundSupported || this.#document?.hidden) return Promise.resolve();
+    if (!this.#sound || !this.soundSupported || this.#document.hidden) return Promise.resolve();
     if (this.#unlocking) return this.#unlocking;
     try {
       const context = this.#context ??= new this.#AudioContext();
@@ -68,7 +68,7 @@ export class PhaseCues {
       }
     }
     if (snapshot.status === 'idle') this.#phaseKey = '';
-    if (snapshot.status !== 'running' || this.#document?.hidden) {
+    if (snapshot.status !== 'running' || this.#document.hidden) {
       this.stop();
       return;
     }
@@ -91,7 +91,7 @@ export class PhaseCues {
     const context = this.#context;
     if (!this.#pending || !snapshot || !context || context.state !== 'running') return;
     this.#pending = null;
-    if (!this.#sound || this.#document?.hidden || snapshot.phaseElapsedMs > MAX_CUE_DELAY_MS) return;
+    if (!this.#sound || this.#document.hidden || snapshot.phaseElapsedMs > MAX_CUE_DELAY_MS) return;
     try {
       const oscillator = context.createOscillator();
       const gain = context.createGain();

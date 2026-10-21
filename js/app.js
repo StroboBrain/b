@@ -97,7 +97,7 @@ export class BreathingApp {
     this.#editor = new PresetEditor({ store, onStorageError: () => this.#reportStorageFailure() });
     this.#preferences = store.loadPreferences();
     this.#durationPicker = new DurationPicker({ document, window, container: this.#elements['timing-fields'],
-      onChange: (phase, value) => this.#setField(phase, value), onCommit: () => {},
+      onChange: (phase, value) => this.#setField(phase, value),
       canChange: () => this.#status === 'idle',
     });
     this.#presetTiles = new PresetTiles({ document, container: this.#elements['preset-tiles'],
@@ -199,10 +199,9 @@ export class BreathingApp {
     this.#window.addEventListener('pagehide', () => this.#suspend());
 
     this.#window.addEventListener('storage', (event) => {
-      // An active exercise keeps its timing even if another tab edits a preset.
       if (PresetStore.affectsPresets(event.key)) {
         this.#presetsChanged = true;
-        if (this.#status === 'idle') this.#refreshPresets();
+        this.#refreshPresets();
       }
       if (PresetStore.affectsPreferences(event.key)) {
         this.#preferences = this.#store.loadPreferences();
@@ -227,6 +226,7 @@ export class BreathingApp {
     this.#populatePresets();
     this.#syncSettings();
     this.#render(this.#session.snapshot);
+    this.#refreshPresets();
   }
 
   #cancelPattern() {
@@ -237,6 +237,7 @@ export class BreathingApp {
     this.#populatePresets();
     this.#syncSettings();
     this.#render(this.#session.snapshot);
+    this.#refreshPresets();
   }
 
   #resetLocalData() {
@@ -257,11 +258,13 @@ export class BreathingApp {
     this.#window.location.reload();
   }
 
+  /** Show other tabs' saves once idle without drafts. Until then this tab keeps its
+   * list; an active exercise also keeps its timing. Whichever tab saves last wins. */
   #refreshPresets() {
+    if (!this.#presetsChanged || this.#status !== 'idle' || !this.#editor.refresh()) return;
+    this.#presetsChanged = false;
     this.#presetDeleteConfirmation.close();
     this.#durationPicker.close();
-    if (!this.#editor.refresh()) return;
-    this.#presetsChanged = false;
     this.#populatePresets();
     this.#syncSettings();
     this.#render(this.#session.snapshot);
@@ -315,6 +318,7 @@ export class BreathingApp {
     this.#render(this.#session.snapshot);
     this.#elements['preset-selector'].focus({ preventScroll: true });
     this.#notify(`${name} removed.`, { dismissOnOutside: true });
+    this.#refreshPresets();
   }
 
   #syncSettings() {
@@ -399,7 +403,7 @@ export class BreathingApp {
 
   #stopSession() {
     this.#session.stop();
-    if (this.#presetsChanged) this.#refreshPresets();
+    this.#refreshPresets();
   }
 
   #toggleSession() {

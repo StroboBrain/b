@@ -1,4 +1,5 @@
 import { OutsideDismissal } from './outside-dismissal.js';
+import { visibleViewport } from './viewport-layout.js';
 
 /** Confirm one captured preset from a popup that expands from its trash control.
  * The caller owns selection, the minimum preset count and persistence.
@@ -125,9 +126,7 @@ export class PresetDeleteConfirmation {
 
   #position() {
     const popup = this.#popup, anchor = this.#trigger.getBoundingClientRect();
-    const viewport = this.#window.visualViewport;
-    const bounds = { left: viewport?.offsetLeft ?? 0, top: viewport?.offsetTop ?? 0,
-      width: viewport?.width ?? this.#window.innerWidth, height: viewport?.height ?? this.#window.innerHeight };
+    const bounds = visibleViewport(this.#window);
     const width = popup.offsetWidth, height = popup.offsetHeight;
     const left = Math.max(bounds.left + 12, Math.min(anchor.left + anchor.width - width, bounds.left + bounds.width - width - 12));
     const top = Math.max(bounds.top + 12, Math.min(anchor.top, bounds.top + bounds.height - height - 12));

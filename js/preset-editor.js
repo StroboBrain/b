@@ -1,8 +1,9 @@
 import { configsEqual, DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
-import { PersistenceError } from './preset-store.js';
+import { PersistenceError, validatePresetName } from './preset-store.js';
 
 /** Pattern drafts stay in memory until save(); selection never commits an edit.
  * Failed storage writes retain dirty edits for retry. Validation errors propagate.
+ * Other tabs' saves load only while there are no drafts, so the last save wins.
  */
 export class PresetEditor {
   #store;
@@ -26,10 +27,9 @@ export class PresetEditor {
     this.#store = store;
     this.#onStorageError = onStorageError;
     this.#crypto = crypto;
-    this.#presets = store.listPresets();
+    this.#load();
     const selection = store.loadSelection();
     this.#selectedId = this.#presets.find((preset) => preset.id === selection)?.id ?? this.#presets[0].id;
-    this.#saved = new Map(this.#presets.map(preset => [preset.id, structuredClone(preset)]));
     this.#lastSavedId = this.#selectedId;
   }
 
@@ -52,9 +52,7 @@ export class PresetEditor {
   }
 
   rename(name) {
-    if (typeof name !== 'string') throw new TypeError('A preset name must be a string.');
-    name = name.trim();
-    if (!name || name.length > 32) throw new RangeError('Use 1–32 characters for a preset name.');
+    name = validatePresetName(name);
     if (name === this.selected.name) return;
     this.selected.name = name;
     this.#markDirty();
@@ -116,18 +114,18 @@ export class PresetEditor {
     }
   }
 
+  /** Reload the saved presets unless drafts would be replaced. @returns {boolean} Whether it reloaded. */
   refresh() {
-    const next = this.#store.listPresets();
-    const saved = new Map(next.map(preset => [preset.id, structuredClone(preset)]));
-    const drafts = new Map(this.#presets.filter(preset => this.#dirty.has(preset.id)
-      && (!this.#saved.has(preset.id) || saved.has(preset.id))).map(preset => [preset.id, preset]));
-    this.#presets = next.map(preset => drafts.get(preset.id) ?? preset);
-    this.#presets.push(...[...drafts.values()].filter(preset => !saved.has(preset.id)));
-    this.#saved = saved;
-    this.#dirty = new Set(drafts.keys());
-    if (!this.#saved.has(this.#lastSavedId)) this.#lastSavedId = next[0].id;
-    if (!this.selected) this.#selectedId = next[0].id;
+    if (this.hasDrafts) return false;
+    this.#load();
+    if (!this.selected) this.#selectedId = this.#presets[0].id;
+    if (!this.#saved.has(this.#lastSavedId)) this.#lastSavedId = this.#selectedId;
     return true;
+  }
+
+  #load() {
+    this.#presets = this.#store.listPresets();
+    this.#saved = new Map(this.#presets.map((preset) => [preset.id, structuredClone(preset)]));
   }
 
   #markDirty() {

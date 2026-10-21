@@ -30,6 +30,27 @@ export function configsEqual(left, right) {
 }
 
 /**
+ * Validate one duration in seconds and return it rounded to tenths.
+ * @param {number} value
+ * @param {number} minimum
+ * @param {number} maximum
+ * @param {string} label Names the value in error messages.
+ * @returns {number}
+ * @throws {TypeError} If the value is not a number.
+ * @throws {RangeError} If the value is not in tenths within [minimum, maximum].
+ */
+export function validateTenths(value, minimum, maximum, label) {
+  if (typeof value !== 'number') {
+    throw new TypeError(`${label} must be a number.`);
+  }
+  if (!Number.isFinite(value) || Math.abs(value * 10 - Math.round(value * 10)) > 1e-8
+    || value < minimum || value > maximum) {
+    throw new RangeError(`${label} must be in steps of 0.1 from ${minimum} to ${maximum}.`);
+  }
+  return Math.round(value * 10) / 10;
+}
+
+/**
  * Validate the public configuration contract and return a detached, normalized copy.
  * Extra properties are ignored; numeric strings are deliberately not coerced.
  * @param {BreathingConfig} config
@@ -44,15 +65,7 @@ export function validateConfig(config) {
 
   const normalized = /** @type {BreathingConfig} */ ({});
   for (const [field, [minimum, maximum]] of Object.entries(CONFIG_LIMITS)) {
-    const value = config[field];
-    if (typeof value !== 'number') {
-      throw new TypeError(`${field} must be a number.`);
-    }
-    if (!Number.isFinite(value) || Math.abs(value * 10 - Math.round(value * 10)) > 1e-8
-      || value < minimum || value > maximum) {
-      throw new RangeError(`${field} must be in steps of 0.1 from ${minimum} to ${maximum}.`);
-    }
-    normalized[field] = Math.round(value * 10) / 10;
+    normalized[field] = validateTenths(config[field], minimum, maximum, field);
   }
   return normalized;
 }

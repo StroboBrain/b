@@ -1,3 +1,10 @@
+/** The visible screen rectangle, including a reduced visual viewport while the keyboard is open. */
+export function visibleViewport(window) {
+  const viewport = window.visualViewport;
+  return { left: viewport?.offsetLeft ?? 0, top: viewport?.offsetTop ?? 0,
+    width: viewport?.width ?? window.innerWidth, height: viewport?.height ?? window.innerHeight };
+}
+
 /** Centers the page against the full viewport without a mirrored native gutter.
  * Measure the root's painted width: clientWidth includes the reserved gutter
  * when scrolling locks, while viewport CSS units also change their basis.
