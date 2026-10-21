@@ -1,5 +1,6 @@
 import { BreathingApp } from './app.js';
 import { ViewportLayout } from './viewport-layout.js';
+import { SectionScroller } from './section-scroller.js';
 
 const appShell = document.getElementById('app-shell');
 
@@ -10,6 +11,7 @@ try {
   // viewport measurement in this same task, before the browser can paint.
   appShell.hidden = false;
   new ViewportLayout();
+  new SectionScroller();
 } catch (error) {
   if (appShell) appShell.hidden = true;
   document.getElementById('startup-error')?.removeAttribute('hidden');

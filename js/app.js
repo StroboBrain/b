@@ -173,6 +173,11 @@ export class BreathingApp {
       ui['preset-name'].setCustomValidity('');
       this.#editor.flush();
     });
+    ui['preset-name'].addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      ui['preset-name'].blur();
+    });
     ui['zen-back'].addEventListener('click', () => this.#navigation.leave());
     this.#document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && this.#zenMode) this.#navigation.leave();

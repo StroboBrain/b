@@ -1061,10 +1061,9 @@ fieldset {
   }
 }
 
-/* Compact mobile sections snap naturally without an extra scroll container. */
+/* Compact mobile sections; SectionScroller controls gesture distance and settling speed. */
 @media (max-width: 760px), (hover: none) and (pointer: coarse) {
   html {
-    scroll-snap-type: y mandatory;
     scroll-padding-block-start: 8px;
   }
   .app-shell {
@@ -1078,13 +1077,6 @@ fieldset {
   }
   .practice-primary {
     min-height: calc(100svh - 12px);
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
-    scroll-margin-block-start: 4px;
-  }
-  .display-options, .settings-card {
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
   }
   .settings-card, .phase-timings, .preset-options, .display-options, .hold-options {
     padding: 8px;
@@ -1095,7 +1087,6 @@ fieldset {
   .install-footer {
     margin-top: 12px;
     gap: 8px;
-    scroll-snap-align: end;
   }
   .phase-step {
     gap: 4px;
