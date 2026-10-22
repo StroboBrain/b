@@ -1,7 +1,7 @@
 {
   "name": "b",
   "short_name": "b",
-  "description": "a customizable breathing exercise app with local presets and offline support.",
+  "description": "a customizable breathing exercise app with local patterns and offline support.",
   "lang": "en",
   "start_url": "./",
   "scope": "./",

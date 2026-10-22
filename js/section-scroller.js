@@ -8,7 +8,7 @@ const TRANSITION_PAGE_MS = 1700;
 const TRANSITION_MAX_MS = 2200;
 const PAGE_SELECTOR = '.app-page';
 
-/** Four continuous vertical pages: flicks and threshold crossings advance a page;
+/** Continuous vertical pages: flicks and threshold crossings advance a page;
  * shorter scrolls return to that page. Oversized page content stays scrollable.
  */
 export class SectionScroller {
@@ -122,6 +122,25 @@ export class SectionScroller {
     this.#listeners = [];
   }
 
+  /** Explicit navigation uses the same glide as a swipe; columns stay alongside. */
+  goTo(page) {
+    if (![...this.#document.querySelectorAll(PAGE_SELECTOR)].includes(page)) {
+      throw new RangeError('Choose an app page in this document.');
+    }
+    this.#interrupt(true);
+    if (this.#document.hidden || this.#document.body.classList.contains('is-zen')) return;
+    const maximum = Math.max(0, this.#document.documentElement.scrollHeight - this.#window.innerHeight);
+    const target = Math.max(0, Math.min(maximum, page.getBoundingClientRect().top + this.#window.scrollY - 8));
+    if (this.#hasColumns()) this.#window.scrollTo({ top: target, behavior: 'instant' });
+    else this.#animate(target);
+  }
+
+  #hasColumns() {
+    const [first, second] = [...this.#document.querySelectorAll(PAGE_SELECTOR)].map(page => page.getBoundingClientRect());
+    return first && second && Math.abs(first.top - second.top) < 1
+      && second.left >= first.left + first.width - 1;
+  }
+
   #excludedTarget(target) {
     return Boolean(target?.closest?.('input, select, textarea, [contenteditable="true"], .duration-picker, dialog, .notification'));
   }
@@ -164,7 +183,7 @@ export class SectionScroller {
     const active = this.#document.activeElement;
     const editing = active?.isContentEditable || active?.tagName === 'TEXTAREA'
       || (active?.tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'button', 'submit', 'reset'].includes(active.type));
-    return !this.#document.hidden && !editing && !this.#document.body.classList.contains('is-zen')
+    return !this.#document.hidden && !editing && !this.#hasColumns() && !this.#document.body.classList.contains('is-zen')
       && (this.#window.visualViewport?.scale ?? 1) === 1
       && !this.#document.querySelector(':popover-open, dialog[open]');
   }

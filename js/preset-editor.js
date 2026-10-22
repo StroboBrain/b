@@ -1,9 +1,9 @@
-import { configsEqual, DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
-import { PersistenceError, validatePresetName } from './preset-store.js';
+import { configsEqual, validateConfig } from './breathing-engine.js';
+import { PersistenceError } from './preset-store.js';
 
-/** Pattern drafts stay in memory until save(); selection never commits an edit.
- * Failed storage writes retain dirty edits for retry. Validation errors propagate.
- * Other tabs' saves load only while there are no drafts, so the last save wins.
+/** Timing changes save immediately; failed writes stay in memory for retry.
+ * Selection, the next adjustment, or flush() retries pending writes.
+ * Other tabs' saves load only when there are no pending timing changes.
  */
 export class PresetEditor {
   #store;
@@ -12,114 +12,63 @@ export class PresetEditor {
   #selectedId;
   #dirty = new Set();
   #saved;
-  #lastSavedId;
   #selectionDirty = false;
-  #crypto;
 
-  constructor({ store, onStorageError, crypto = globalThis.crypto } = {}) {
-    for (const method of ['listPresets', 'loadSelection', 'savePreset', 'deletePreset', 'saveSelection']) {
+  constructor({ store, onStorageError } = {}) {
+    for (const method of ['listPresets', 'loadSelection', 'savePreset', 'saveSelection']) {
       if (typeof store?.[method] !== 'function') throw new TypeError(`The preset store must provide ${method}().`);
     }
     if (typeof onStorageError !== 'function') throw new TypeError('onStorageError must be a function.');
-    if (typeof crypto?.randomUUID !== 'function' && typeof crypto?.getRandomValues !== 'function') {
-      throw new TypeError('Crypto must provide randomUUID() or getRandomValues().');
-    }
     this.#store = store;
     this.#onStorageError = onStorageError;
-    this.#crypto = crypto;
     this.#load();
     const selection = store.loadSelection();
     this.#selectedId = this.#presets.find((preset) => preset.id === selection)?.id ?? this.#presets[0].id;
-    this.#lastSavedId = this.#selectedId;
   }
 
   get presets() { return this.#presets; }
   get selected() { return this.#presets.find((preset) => preset.id === this.#selectedId); }
   get hasDrafts() { return this.#dirty.size > 0; }
-
-  /** Add a draft without writing it or any other pattern to storage. */
-  add() {
-    let name = 'New preset';
-    for (let suffix = 2; this.#presets.some((preset) => preset.name.toLowerCase() === name.toLowerCase()); suffix++) {
-      name = `New preset ${suffix}`;
-    }
-    const preset = { id: `preset-${this.#createUuid()}`, name, config: { ...DEFAULT_CONFIG } };
-    this.#presets.push(preset);
-    this.#selectedId = preset.id;
-    this.#dirty.add(preset.id);
-    this.#selectionDirty = true;
-    return preset;
-  }
-
-  rename(name) {
-    name = validatePresetName(name);
-    if (name === this.selected.name) return;
-    this.selected.name = name;
-    this.#markDirty();
-  }
-
-  /** Commit deletion before removing it from the UI; failed saves leave it available. */
-  remove() {
-    if (this.#presets.length <= 2) throw new RangeError('Keep at least two presets.');
-    const index = this.#presets.findIndex((preset) => preset.id === this.#selectedId);
-    if (this.#saved.has(this.#selectedId)
-      && !this.#persist(() => this.#store.deletePreset(this.#selectedId))) return false;
-    this.#saved.delete(this.#selectedId);
-    this.#dirty.delete(this.#selectedId);
-    this.#presets.splice(index, 1);
-    this.#selectedId = this.#presets[Math.min(index, this.#presets.length - 1)].id;
-    this.#selectionDirty = true;
-    this.#saveSelection();
-    return true;
-  }
+  get hasPendingChanges() { return this.hasDrafts || this.#selectionDirty; }
 
   setConfig(config) {
     const normalized = validateConfig(config);
-    if (configsEqual(normalized, this.selected.config)) return;
-    this.selected.config = normalized;
-    this.#markDirty();
+    if (!configsEqual(normalized, this.selected.config)) {
+      this.selected.config = normalized;
+      this.#markDirty();
+    }
+    return this.flush();
   }
 
   select(id) {
-    if (!this.#presets.some((preset) => preset.id === id)) throw new RangeError('Choose an available preset.');
-    if (this.#selectedId === id) return;
-    this.#selectedId = id;
-    this.#selectionDirty = true;
-    this.#saveSelection();
+    if (!this.#presets.some((preset) => preset.id === id)) throw new RangeError('Choose an available pattern.');
+    if (this.#selectedId !== id) {
+      this.#selectedId = id;
+      this.#selectionDirty = true;
+    }
+    return this.flush();
   }
 
-  /** Save only the selected draft, retaining it after a failed write for retry. */
-  save() {
-    const preset = this.selected;
-    if (this.#dirty.has(preset.id)) {
-      if (!this.#persist(() => this.#store.savePreset(preset.id, preset.name, preset.config))) return false;
+  /** Retry pending changes; a failed timing write never discards its local value. */
+  flush() {
+    let saved = true;
+    for (const id of this.#dirty) {
+      const preset = this.#presets.find((entry) => entry.id === id);
+      if (!this.#persist(() => this.#store.savePreset(preset.id, preset.name, preset.config))) {
+        saved = false;
+        continue;
+      }
       this.#saved.set(preset.id, structuredClone(preset));
       this.#dirty.delete(preset.id);
     }
-    return this.#saveSelection();
+    return this.#saveSelection() && saved;
   }
 
-  /** Restore the saved pattern; cancelling an unsaved addition removes its draft. */
-  cancel() {
-    const id = this.#selectedId;
-    const index = this.#presets.findIndex(preset => preset.id === id);
-    const saved = this.#saved.get(id);
-    this.#dirty.delete(id);
-    if (saved) this.#presets[index] = structuredClone(saved);
-    else {
-      this.#presets.splice(index, 1);
-      this.#selectedId = this.#presets.find(preset => preset.id === this.#lastSavedId)?.id
-        ?? this.#presets[0].id;
-      this.#selectionDirty = true;
-    }
-  }
-
-  /** Reload the saved presets unless drafts would be replaced. @returns {boolean} Whether it reloaded. */
+  /** Reload saved patterns unless pending timings would be replaced. @returns {boolean} Whether it reloaded. */
   refresh() {
     if (this.hasDrafts) return false;
     this.#load();
     if (!this.selected) this.#selectedId = this.#presets[0].id;
-    if (!this.#saved.has(this.#lastSavedId)) this.#lastSavedId = this.#selectedId;
     return true;
   }
 
@@ -130,29 +79,16 @@ export class PresetEditor {
 
   #markDirty() {
     const saved = this.#saved.get(this.#selectedId);
-    if (saved && saved.name === this.selected.name && configsEqual(saved.config, this.selected.config)) {
+    if (configsEqual(saved.config, this.selected.config)) {
       this.#dirty.delete(this.#selectedId);
     } else this.#dirty.add(this.#selectedId);
   }
 
   #saveSelection() {
     if (!this.#selectionDirty) return true;
-    if (!this.#saved.has(this.#selectedId)) return true;
     if (!this.#persist(() => this.#store.saveSelection(this.#selectedId))) return false;
     this.#selectionDirty = false;
-    this.#lastSavedId = this.#selectedId;
     return true;
-  }
-
-  /** getRandomValues remains available when HTTP does not expose randomUUID. */
-  #createUuid() {
-    if (typeof this.#crypto.randomUUID === 'function') return this.#crypto.randomUUID();
-    const bytes = new Uint8Array(16);
-    this.#crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
   #persist(operation) {

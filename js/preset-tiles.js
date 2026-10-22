@@ -12,7 +12,7 @@ export class PresetTiles {
   constructor({ document, container, onSelect } = {}) {
     if (typeof document?.createElement !== 'function' || typeof container?.replaceChildren !== 'function'
       || typeof container.addEventListener !== 'function' || typeof onSelect !== 'function') {
-      throw new TypeError('PresetTiles requires a document, container and selection callback.');
+      throw new TypeError('Pattern tiles require a document, container and selection callback.');
     }
     this.#document = document;
     this.#container = container;
@@ -25,17 +25,17 @@ export class PresetTiles {
   }
 
   render(presets, selectedId) {
-    if (!Array.isArray(presets) || presets.length === 0) throw new TypeError('Provide a nonempty preset list.');
+    if (!Array.isArray(presets) || presets.length === 0) throw new TypeError('Provide a nonempty pattern list.');
     const ids = new Set();
     for (const preset of presets) {
       if (typeof preset?.id !== 'string' || !preset.id || typeof preset.name !== 'string' || !preset.name.trim()) {
-        throw new TypeError('Each preset requires an ID, name and configuration.');
+        throw new TypeError('Each pattern requires an ID, name and configuration.');
       }
-      if (ids.has(preset.id)) throw new RangeError('Preset IDs must be unique.');
+      if (ids.has(preset.id)) throw new RangeError('Pattern IDs must be unique.');
       ids.add(preset.id);
       validateConfig(preset.config);
     }
-    if (!ids.has(selectedId)) throw new RangeError('The selected preset must be in the list.');
+    if (!ids.has(selectedId)) throw new RangeError('The selected pattern must be in the list.');
 
     const reordered = presets.length !== this.#tiles.size
       || presets.some((preset, index) => this.#container.children[index]?.dataset.preset !== preset.id);

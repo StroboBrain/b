@@ -21,7 +21,7 @@ const freezePreset = (preset) => Object.freeze({
   config: Object.freeze(preset.config),
 });
 
-/** Initial exercises. Added presets and edits share local storage with stable IDs. */
+/** The six permanent exercises, with stable IDs and names. */
 const BASE_PRESETS = Object.freeze([
   freezePreset({ id: 'box', name: 'Box breathing', config: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 } }),
   freezePreset({ id: 'slow', name: 'Slow breathing', config: { inhale: 4, holdIn: 0, exhale: 6, holdOut: 0 } }),
@@ -32,15 +32,19 @@ const BASE_PRESETS = Object.freeze([
 ]);
 
 const findBase = (id) => BASE_PRESETS.find((preset) => preset.id === id);
-const isAddedId = (id) => typeof id === 'string'
-  && /^preset-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
 
 function presetsFromOverrides(overrides) {
-  return [
-    ...BASE_PRESETS.map((preset) => overrides.find((entry) => entry.id === preset.id) ?? copyPreset(preset))
-      .filter((preset) => !preset.deleted),
-    ...overrides.filter((preset) => !findBase(preset.id)),
-  ];
+  return BASE_PRESETS.map((preset) => {
+    for (const entry of overrides) {
+      if (entry?.id !== preset.id || entry.deleted === true) continue;
+      try {
+        return { id: preset.id, name: preset.name, config: validateConfig(entry.config) };
+      } catch {
+        // A damaged timing must not replace a valid preset or hide later valid edits.
+      }
+    }
+    return copyPreset(preset);
+  });
 }
 
 export class PersistenceError extends Error {
@@ -56,18 +60,6 @@ function defaultStorage() {
   } catch {
     return null;
   }
-}
-
-/** @returns {string} The trimmed name. @throws {TypeError|RangeError} Unless it has 1–32 characters. */
-export function validatePresetName(name) {
-  if (typeof name !== 'string') {
-    throw new TypeError('Give your preset a name.');
-  }
-  const trimmed = name.trim();
-  if (trimmed.length === 0 || trimmed.length > 32) {
-    throw new RangeError('Preset names must contain 1–32 characters.');
-  }
-  return trimmed;
 }
 
 function copyPreset(preset) {
@@ -124,41 +116,26 @@ export class PresetStore {
     this.#storage = storage;
   }
 
-  /** @returns {Array<{id: string, name: string, config: object}>} All presets with saved edits. */
+  /** @returns {Array<{id: string, name: string, config: object}>} Exactly six presets with saved timings. */
   listPresets() {
     return presetsFromOverrides(this.#readOverrides(false));
   }
 
-  /** Delete any preset, including built-ins, while keeping at least two available.
-   * A preset that another tab already deleted stays deleted: the last save wins. */
-  deletePreset(id) {
-    if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
-    const previous = this.#readOverrides(true);
-    const presets = presetsFromOverrides(previous);
-    if (!presets.some((preset) => preset.id === id)) return;
-    if (presets.length <= 2) throw new RangeError('Keep at least two presets.');
-    const overrides = previous.filter((preset) => preset.id !== id);
-    if (findBase(id)) overrides.push({ id, deleted: true });
-    this.#write(PRESET_OVERRIDES_KEY, overrides);
-  }
-
-  /** Save an added preset or edit a built-in; unchanged built-ins store no override. */
+  /** Save timings for a permanent preset; names remain fixed.
+   * The name argument remains for callers using the previous storage contract.
+   * Unrelated legacy records stay in storage, including hidden added presets.
+   */
   savePreset(id, name, config) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
-    const normalizedName = validatePresetName(name);
-    const normalizedConfig = validateConfig(config);
     const base = findBase(id);
-    const preset = { id, name: normalizedName, config: normalizedConfig };
+    if (!base) throw new RangeError('Choose an available preset.');
+    const preset = { id, name: base.name, config: validateConfig(config) };
     const previous = this.#readOverrides(true);
-    if (!base && !isAddedId(id) && !previous.some((entry) => entry.id === id)) {
-      throw new RangeError('Choose an available preset.');
+    const overrides = previous.filter((entry) => entry?.id !== id);
+    if (!configsEqual(base.config, preset.config)) {
+      const index = previous.findIndex((entry) => entry?.id === id);
+      overrides.splice(index === -1 ? overrides.length : index, 0, preset);
     }
-    const overrides = [...previous];
-    const index = overrides.findIndex((entry) => entry.id === id);
-    if (base && base.name === preset.name && configsEqual(base.config, preset.config)) {
-      if (index !== -1) overrides.splice(index, 1);
-    } else if (index === -1) overrides.push(preset);
-    else overrides[index] = preset;
     if (JSON.stringify(previous) !== JSON.stringify(overrides)) this.#write(PRESET_OVERRIDES_KEY, overrides);
     return copyPreset(preset);
   }
@@ -188,18 +165,6 @@ export class PresetStore {
     return { ...normalizedPreferences };
   }
 
-  /** Remove this app's saved presets, selection and preferences only. */
-  reset() {
-    try {
-      const storage = this.#requireStorage();
-      for (const key of [PRESET_OVERRIDES_KEY, SELECTION_KEY, PREFERENCES_KEY]) {
-        storage.removeItem(key);
-      }
-    } catch (cause) {
-      throw new PersistenceError(cause);
-    }
-  }
-
   #requireStorage() {
     if (!this.#storage) throw new Error('Local storage is unavailable.');
     return this.#storage;
@@ -222,27 +187,7 @@ export class PresetStore {
 
   #readOverrides(strict) {
     const stored = this.#read(PRESET_OVERRIDES_KEY, strict);
-    if (!Array.isArray(stored)) return [];
-    const ids = new Set();
-    const overrides = [];
-    for (const entry of stored) {
-      if ((!findBase(entry?.id) && !isAddedId(entry?.id)) || ids.has(entry.id)) continue;
-      try {
-        overrides.push(findBase(entry.id) && entry.deleted === true ? { id: entry.id, deleted: true }
-          : { id: entry.id, name: validatePresetName(entry.name), config: validateConfig(entry.config) });
-        ids.add(entry.id);
-      } catch {
-        // A damaged edit must not replace a valid preset or hide other edits.
-      }
-    }
-    // Corrupt deletion records must never leave the app without two usable presets.
-    let count = presetsFromOverrides(overrides).length;
-    for (let index = overrides.length - 1; count < 2 && index >= 0; index--) {
-      if (!overrides[index].deleted) continue;
-      overrides.splice(index, 1);
-      count++;
-    }
-    return overrides;
+    return Array.isArray(stored) ? stored : [];
   }
 
   #write(key, value) {

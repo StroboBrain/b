@@ -22,8 +22,8 @@ export class SessionView {
     const label = active ? phaseLabel(phase) : 'inhale';
     if (visualKey !== this.#lastVisualKey) {
       this.#lastVisualKey = visualKey;
-      ui['settings-fields'].disabled = active;
       ui['preset-fields'].disabled = active;
+      ui['timing-fields'].disabled = active;
       ui['session-button'].disabled = false;
       ui['session-button-label'].textContent = running ? 'stop' : status === 'paused' ? 'resume' : 'start';
       ui['session-button-icon'].className = running ? 'icon-stop' : 'icon-play';
@@ -48,13 +48,15 @@ export class SessionView {
       }
     }
 
-    const count = active ? String(Math.ceil(snapshot.phaseRemainingMs / 1000)) : String(inhale);
+    // Keep an initial fractional duration until its first whole-second boundary.
+    const remainingSeconds = Math.min(snapshot.phaseDurationMs / 1000, Math.ceil(snapshot.phaseRemainingMs / 1000));
+    const count = active ? String(remainingSeconds) : String(inhale);
     if (ui['phase-count'].textContent !== count) ui['phase-count'].textContent = count;
     const announcementKey = active ? visualKey : 'idle';
     if (announcementKey !== this.#lastAnnouncementKey) {
       this.#lastAnnouncementKey = announcementKey;
       ui['phase-announcement'].textContent = active
-        ? `${status === 'paused' ? 'paused. ' : ''}${label} for ${spokenDuration(Math.ceil(snapshot.phaseRemainingMs / 1000))}.`
+        ? `${status === 'paused' ? 'paused. ' : ''}${label} for ${spokenDuration(remainingSeconds)}.`
         : '';
     }
   }

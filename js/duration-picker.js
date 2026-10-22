@@ -5,8 +5,6 @@ import { visibleViewport } from './viewport-layout.js';
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
-const SLIDER_MAX_SECONDS = 20;
-const MIN_LEFT_PICKER_WIDTH = 200;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls; every accepted
@@ -18,10 +16,7 @@ export class DurationPicker {
   #onChange;
   #canChange;
   #values;
-  #presetId;
-  #lastHoldDurations = new Map();
   #press = null;
-  #sliderDrag = null;
   #pointerClick = null;
   #listeners = [];
   #outsideDismissal;
@@ -40,16 +35,10 @@ export class DurationPicker {
     this.#onChange = onChange;
     this.#canChange = canChange;
     this.#controls = Object.fromEntries(PHASES.map((phase) => {
-      const controls = Object.fromEntries(['value', 'picker', 'picked-value', 'decrease', 'increase', 'slider', 'fine-decrease', 'fine-increase']
+      const controls = Object.fromEntries(['value', 'picker', 'picked-value', 'decrease', 'increase', 'fine-decrease', 'fine-increase']
         .map((suffix) => [suffix, document.getElementById(`${phase}-${suffix}`)]));
       if (Object.values(controls).some((element) => !element)) {
         throw new Error(`DurationPicker is missing controls for ${phase}.`);
-      }
-      controls.choices = [...container.querySelectorAll(`.time-choice[data-field="${phase}"]`)];
-      if (phase === 'holdIn' || phase === 'holdOut') {
-        controls.enabled = document.getElementById(`${phase}-enabled`);
-        controls.state = controls.enabled?.closest('.hold-toggle')?.querySelector('.hold-toggle-state');
-        if (!controls.enabled || !controls.state) throw new Error(`DurationPicker is missing the hold switch for ${phase}.`);
       }
       return [phase, controls];
     }));
@@ -59,28 +48,26 @@ export class DurationPicker {
       onDismiss: () => this.close(),
     });
 
-    this.#listen(container, 'pointerdown', (event) => {
-      if (event.target.classList.contains('duration-slider')) this.#startSliderDrag(event);
-      else this.#startPress(event);
-    });
+    this.#listen(container, 'pointerdown', (event) => this.#startPress(event));
     this.#listen(container, 'click', (event) => this.#click(event));
-    this.#listen(container, 'input', (event) => this.#slide(event));
-    this.#listen(container, 'change', (event) => {
-      if (event.target.classList.contains('hold-enabled')) this.#toggleHold(event.target);
-    });
-    const release = (event) => {
-      this.#finishPress(event.pointerId);
-      this.#finishSliderDrag(event.pointerId);
-    };
+    const release = (event) => this.#finishPress(event.pointerId);
     this.#listen(document, 'pointerup', release);
     this.#listen(document, 'pointercancel', release);
     this.#listen(container, 'lostpointercapture', release);
     // Keep targets still while native section snapping settles in the page.
     // Only a real viewport resize should move an already open picker.
     this.#listen(window, 'resize', () => this.#positionOpenPicker());
-    this.#listen(window, 'blur', () => {
-      this.#finishPress();
-      this.#finishSliderDrag();
+    if (window.visualViewport?.addEventListener) {
+      this.#listen(window.visualViewport, 'resize', () => this.#positionOpenPicker());
+    }
+    this.#listen(window, 'blur', () => this.#finishPress());
+    this.#listen(document, 'keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      const controls = Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'));
+      if (!controls) return;
+      event.preventDefault();
+      this.close();
+      controls.value.focus({ preventScroll: true });
     });
     this.#listen(document, 'visibilitychange', () => { if (document.hidden) this.close(); });
     for (const controls of Object.values(this.#controls)) {
@@ -89,22 +76,18 @@ export class DurationPicker {
         controls.value.setAttribute('aria-expanded', String(open));
         if (!open) {
           this.#finishPress();
-          this.#finishSliderDrag();
         }
       });
     }
   }
 
-  /** The preset key scopes remembered hold durations to this visit and preset. */
-  render(config, presetId) {
+  render(config) {
     this.#values = validateConfig(config);
-    this.#presetId = presetId;
     for (const phase of PHASES) this.#renderValue(phase);
   }
 
   close() {
     this.#finishPress();
-    this.#finishSliderDrag();
     for (const { picker } of Object.values(this.#controls)) {
       if (picker.matches(':popover-open')) picker.hidePopover();
     }
@@ -127,10 +110,11 @@ export class DurationPicker {
     if (!button || button.matches(':disabled') || !this.#canChange()) return;
     const phase = button.dataset.field;
     if (!PHASES.includes(phase)) return;
-    if (button.classList.contains('duration-button')) {
-      this.#open(phase);
-    } else if (button.classList.contains('time-choice')) {
-      this.#setValue(phase, Number(button.dataset.value));
+    if (button.classList.contains('picker-done')) {
+      this.close();
+      this.#controls[phase].value.focus({ preventScroll: true });
+    } else if (button.classList.contains('duration-button')) {
+      this.#open(phase, event);
     } else if (button.classList.contains('duration-step')) {
       // A pointer press already changed the value; keyboard/AT clicks have no pointer.
       if (event.detail !== 0 && this.#pointerClick === button) {
@@ -162,44 +146,6 @@ export class DurationPicker {
     press.timer = this.#window.setTimeout(repeat, REPEAT_DELAY_MS);
   }
 
-  #startSliderDrag(event) {
-    const slider = event.target;
-    if (event.button !== 0 || event.isPrimary === false || slider.matches(':disabled') || !this.#canChange()) return;
-    this.#finishPress();
-    this.#sliderDrag = { slider, pointerId: event.pointerId };
-    // Keep the whole gesture on the slider, including overshooting either end.
-    slider.setPointerCapture?.(event.pointerId);
-  }
-
-  #finishSliderDrag(pointerId) {
-    const drag = this.#sliderDrag;
-    if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return;
-    this.#sliderDrag = null;
-    if (drag.slider.hasPointerCapture?.(drag.pointerId)) drag.slider.releasePointerCapture(drag.pointerId);
-  }
-
-  #slide(event) {
-    const slider = event.target;
-    const phase = slider.dataset.field;
-    if (!slider.classList.contains('duration-slider') || !PHASES.includes(phase)) return;
-    if (slider.matches(':disabled') || !this.#canChange()) {
-      this.#renderValue(phase);
-      return;
-    }
-    const value = this.#clamp(phase, Math.min(SLIDER_MAX_SECONDS, Number(slider.value)));
-    if (Number.isFinite(value)) this.#setValue(phase, value);
-  }
-
-  #toggleHold(toggle) {
-    const phase = toggle.dataset.field;
-    if (!this.#values || this.#controls[phase]?.enabled !== toggle) return;
-    if (toggle.matches(':disabled') || !this.#canChange()) {
-      this.#renderValue(phase);
-      return;
-    }
-    this.#setValue(phase, toggle.checked ? this.#lastHoldDurations.get(this.#presetId)?.[phase] ?? 4 : 0);
-  }
-
   #finishPress(pointerId) {
     const press = this.#press;
     if (!press || (pointerId !== undefined && pointerId !== press.pointerId)) return;
@@ -210,8 +156,9 @@ export class DurationPicker {
 
   #step(button) {
     const phase = button.dataset.field;
-    if (!this.#values || !PHASES.includes(phase)) return false;
-    return this.#setValue(phase, this.#clamp(phase, this.#values[phase] + Number(button.dataset.step)));
+    const step = Number(button.dataset.step);
+    if (!this.#values || !PHASES.includes(phase) || !Number.isFinite(step)) return false;
+    return this.#setValue(phase, this.#clamp(phase, this.#values[phase] + step));
   }
 
   /** Round to tenths within the phase limits; a non-number stays NaN. */
@@ -233,70 +180,68 @@ export class DurationPicker {
     const value = this.#values[phase];
     const duration = formatDuration(value);
     controls.value.value = value;
-    controls.value.textContent = duration;
+    const time = controls.value.querySelector('.phase-time');
+    if (time) time.textContent = duration;
+    else controls.value.textContent = duration;
     controls.value.setAttribute('aria-label', `adjust ${phaseDescription(phase)} duration, ${spokenDuration(value)}`);
-    controls.value.closest('.timing-field').classList.toggle('is-off', value === 0);
-    if (controls.enabled) {
-      controls.enabled.checked = value > 0;
-      controls.state.textContent = value > 0 ? 'on' : 'off';
-      if (value > 0) {
-        const durations = this.#lastHoldDurations.get(this.#presetId) ?? {};
-        durations[phase] = value;
-        this.#lastHoldDurations.set(this.#presetId, durations);
-      }
-    }
+    const field = controls.value.closest('.timing-field') ?? controls.value.closest('.phase-step');
+    field?.classList.toggle('is-off', value === 0);
     controls['picked-value'].value = duration;
-    // The slider covers shorter durations; buttons retain the full phase value.
-    const sliderValue = Math.min(value, SLIDER_MAX_SECONDS);
-    controls.slider.value = String(sliderValue);
-    controls.slider.setAttribute('aria-valuetext', spokenDuration(sliderValue));
     const [minimum, maximum] = CONFIG_LIMITS[phase];
     controls.decrease.disabled = value === minimum;
     controls.increase.disabled = value === maximum;
     controls['fine-decrease'].disabled = controls.decrease.disabled;
     controls['fine-increase'].disabled = controls.increase.disabled;
-    for (const choice of controls.choices) {
-      choice.setAttribute('aria-pressed', String(Number(choice.dataset.value) === value));
-    }
   }
 
-  #open(phase) {
+  #open(phase, event) {
     const { value: trigger, picker, increase } = this.#controls[phase];
     if (picker.matches(':popover-open')) {
       picker.hidePopover();
       return;
     }
+    this.close();
     trigger.focus({ preventScroll: true });
+    const anchor = trigger.getBoundingClientRect();
+    const origin = event.detail > 0 && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
+      ? { x: event.clientX, y: event.clientY }
+      : { x: anchor.left + anchor.width / 2, y: anchor.top + anchor.height / 2 };
     picker.showPopover();
-    this.#position(phase);
+    this.#position(phase, visibleViewport(this.#window), origin);
     const focus = increase.disabled ? this.#controls[phase].decrease : increase;
     focus.focus({ preventScroll: true });
   }
 
   #positionOpenPicker() {
-    if (this.#sliderDrag) return;
     const bounds = visibleViewport(this.#window);
     if (Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
     const entry = Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'));
     if (entry) this.#position(entry[0], bounds);
   }
 
-  #position(phase, bounds = visibleViewport(this.#window)) {
-    const { value: trigger, picker } = this.#controls[phase];
+  #position(phase, bounds = visibleViewport(this.#window), origin) {
+    const { value: trigger, picker, 'picked-value': output } = this.#controls[phase];
     const anchor = trigger.getBoundingClientRect();
     const { left, top, width, height } = bounds;
     this.#viewportBounds = bounds;
-    // Measure after constraining to the visible screen, including a reduced
-    // visual viewport while the keyboard is open. Longer controls scroll inside.
-    const availableLeft = anchor.left - left - 16;
+    // The expanded column occupies the timing cell's width. Its center stays
+    // over the original time while the adjustment buttons grow above and below.
     const viewportWidth = Math.max(0, width - 16);
-    // A slightly narrower picker keeps the button clear on small phones while
-    // retaining enough room for both step stacks and the longest readout.
-    picker.style.maxWidth = `${availableLeft >= MIN_LEFT_PICKER_WIDTH ? Math.min(viewportWidth, availableLeft) : viewportWidth}px`;
+    picker.style.width = `${Math.max(52, anchor.width)}px`;
+    picker.style.maxWidth = `${viewportWidth}px`;
     picker.style.maxHeight = `${Math.max(0, height - 16)}px`;
-    // Grow up from the duration button and sit beside its left edge when there
-    // is room. Only shift away from that anchor to keep the whole picker visible.
-    picker.style.left = `${Math.max(left + 8, Math.min(anchor.left - picker.offsetWidth - 8, left + width - picker.offsetWidth - 8))}px`;
-    picker.style.top = `${Math.max(top + 8, Math.min(anchor.top + anchor.height - picker.offsetHeight, top + height - picker.offsetHeight - 8))}px`;
+    const center = output.closest('.picker-center') ?? output;
+    const centerOffset = center.offsetTop + center.offsetHeight / 2;
+    picker.style.setProperty('--picker-closed-scale', String(Math.min(1, anchor.height / picker.offsetHeight)));
+    const pickerLeft = Math.max(left + 8, Math.min(anchor.left + (anchor.width - picker.offsetWidth) / 2, left + width - picker.offsetWidth - 8));
+    const pickerTop = Math.max(top + 8, Math.min(anchor.top + anchor.height / 2 - centerOffset, top + height - picker.offsetHeight - 8));
+    picker.style.left = `${pickerLeft}px`;
+    picker.style.top = `${pickerTop}px`;
+    if (origin) {
+      // Read unscaled layout sizes so the opening animation cannot shift the
+      // column. Each opening grows from its own pointer or keyboard origin.
+      picker.style.setProperty('--picker-origin-x', `${origin.x - pickerLeft}px`);
+      picker.style.setProperty('--picker-origin-y', `${origin.y - pickerTop}px`);
+    }
   }
 }
