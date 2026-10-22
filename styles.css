@@ -151,10 +151,11 @@ button:disabled, .preset-tile:has(:disabled) {
 .feedback-page {
   container-type: inline-size;
   min-height: calc(100svh - 8px);
+  padding-top: 24px;
   padding-bottom: max(32px, env(safe-area-inset-bottom));
 }
 .feedback-page > .display-options {
-  margin-top: 0;
+  margin-top: 24px;
 }
 #install-button {
   width: 100%;
@@ -446,7 +447,7 @@ button:disabled, .preset-tile:has(:disabled) {
   justify-content: center;
   gap: 10px;
   min-height: 48px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: var(--text-label);
   font-weight: 500;
   padding: 12px 20px;
@@ -562,6 +563,15 @@ button:disabled, .preset-tile:has(:disabled) {
   margin-top: 16px;
   width: 100%;
 }
+.nav-arrow {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+}
+.nav-arrow-down { transform: translateY(-2px) rotate(45deg); }
+.nav-arrow-up { transform: translateY(2px) rotate(225deg); }
 fieldset {
   border: 0;
   padding: 0;
@@ -585,18 +595,9 @@ fieldset {
 .display-options > legend, .hold-options > legend {
   font-size: 18px;
 }
-.hold-options:disabled {
-  opacity: .4;
-}
-.hold-options:not(:disabled) .hold-empty-note {
-  display: none;
-}
-.hold-options:disabled .hold-choice {
-  cursor: default;
-}
 .hold-choices {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 .hold-choice {
@@ -606,10 +607,10 @@ fieldset {
   justify-content: center;
   gap: 8px;
   min-width: 0;
-  min-height: 78px;
-  padding: 10px 4px;
+  min-height: 132px;
+  padding: 16px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--ink);
   color: var(--text-secondary);
   font-size: 15px;
@@ -620,8 +621,8 @@ fieldset {
 }
 .hold-sample {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   overflow: hidden;
   background: var(--orb-dark);
@@ -629,9 +630,6 @@ fieldset {
 .hold-sample .hold-fill {
   --hold-progress: .3;
   animation: hold-preview-fill 13.833333333s linear infinite;
-}
-.hold-options:disabled .hold-sample .hold-fill {
-  animation: none;
 }
 /* Fill at 30% of the original speed (13 1/3 seconds), then pause for half a second. */
 @keyframes hold-preview-fill {
@@ -649,9 +647,11 @@ fieldset {
 .preset-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 18px 12px;
+  padding-top: 8px;
 }
 .preset-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -661,7 +661,7 @@ fieldset {
   min-height: 56px;
   padding: 8px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: 3px;
   background: var(--ink);
   color: var(--text-control);
   text-align: left;
@@ -676,11 +676,17 @@ fieldset {
   color: var(--paper);
 }
 .preset-name {
-  max-width: 100%;
+  position: absolute;
+  top: 0;
+  left: 8px;
+  transform: translateY(-50%);
+  max-width: calc(100% - 16px);
+  padding: 0 4px;
+  background: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.2;
   font-weight: 500;
   overflow-wrap: anywhere;
@@ -715,7 +721,7 @@ fieldset {
   min-height: 56px;
   padding: 6px 2px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 2px;
   background: transparent;
   color: inherit;
   font-size: var(--text-body);
@@ -747,34 +753,49 @@ fieldset {
   background: var(--surface-popover);
   color: var(--paper);
   box-shadow: 0 8px 32px var(--shadow-deep);
-  overflow: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  flex-direction: column;
-  gap: 4px;
-  transform-origin: var(--picker-origin-x, 50%) var(--picker-origin-y, 50%);
-  transform: scaleY(var(--picker-closed-scale, .22));
-  opacity: 0;
+  height: var(--picker-closed-height, 56px);
+  top: var(--picker-closed-top, 0px);
   pointer-events: none;
   transition:
-    transform .85s cubic-bezier(.4, 0, .2, 1),
-    opacity .85s ease,
+    height .85s cubic-bezier(.4, 0, .2, 1),
+    top .85s cubic-bezier(.4, 0, .2, 1),
     display .85s allow-discrete,
     overlay .85s allow-discrete;
 }
 .duration-picker:popover-open {
-  display: flex;
-  transform: scaleY(1);
-  opacity: 1;
+  display: block;
+  height: var(--picker-open-height, 256px);
+  top: var(--picker-open-top, 0px);
   pointer-events: auto;
 }
 @starting-style {
   .duration-picker:popover-open {
-    transform: scaleY(var(--picker-closed-scale, .22));
-    opacity: 0;
+    height: var(--picker-closed-height, 56px);
+    top: var(--picker-closed-top, 0px);
   }
 }
+.picker-content {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  right: 3px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.duration-picker[data-compact="true"] .picker-content { gap: 1px; }
+.duration-picker[data-scrollable="true"]:popover-open { overflow-y: auto; }
+.duration-picker[data-scrollable="true"] .picker-content {
+  top: 3px;
+  transform: none;
+}
 .duration-step {
+  visibility: hidden;
+  opacity: 0;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -783,12 +804,23 @@ fieldset {
   min-height: 44px;
   padding: 4px;
   border: 1px solid var(--line-strong);
-  border-radius: 4px;
+  border-radius: 2px;
   background: var(--ink);
   color: var(--paper);
   font-size: 20px;
   line-height: 1;
   touch-action: none;
+  transition: opacity .16s ease, visibility 0s linear .16s;
+}
+.duration-step:disabled { --picker-step-opacity: .4; }
+.duration-step[data-revealed="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.duration-step[data-revealed="true"] {
+  visibility: visible;
+  opacity: var(--picker-step-opacity, 1);
+  transition-delay: 0s;
 }
 .duration-step:hover:not(:disabled) {
   background: var(--surface-pressed);
@@ -815,6 +847,60 @@ fieldset {
 .settings-note:empty {
   display: none;
 }
+.data-options { margin-top: 24px; }
+.data-options .settings-note { margin: 0 0 10px; }
+.data-options > .button { width: 100%; }
+.reset-confirmation {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 3px;
+  width: 280px;
+  max-width: calc(100dvw - 16px);
+  max-height: calc(100dvh - 16px);
+  height: var(--reset-closed-height, 48px);
+  top: var(--reset-closed-top, 0px);
+  overflow: hidden;
+  border: 1px solid var(--border-hover);
+  border-radius: 3px;
+  color: var(--paper);
+  background: var(--surface-popover);
+  box-shadow: 0 8px 32px var(--shadow-deep);
+  pointer-events: none;
+  transition: height .6s cubic-bezier(.4, 0, .2, 1), top .6s cubic-bezier(.4, 0, .2, 1),
+    display .6s allow-discrete, overlay .6s allow-discrete;
+}
+.reset-confirmation:popover-open {
+  display: block;
+  height: var(--reset-open-height, 132px);
+  top: var(--reset-open-top, 0px);
+  pointer-events: auto;
+}
+@starting-style {
+  .reset-confirmation:popover-open {
+    height: var(--reset-closed-height, 48px);
+    top: var(--reset-closed-top, 0px);
+  }
+}
+.reset-confirmation-content {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  right: 3px;
+  padding: 8px;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.reset-confirmation:popover-open .reset-confirmation-content {
+  opacity: 1;
+  transition: opacity .25s ease .2s;
+}
+@starting-style {
+  .reset-confirmation:popover-open .reset-confirmation-content { opacity: 0; }
+}
+.reset-confirmation-content p { margin: 0 0 14px; font-size: var(--text-body); }
+.reset-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.reset-actions .button { padding-inline: 8px; }
 .notification {
   position: fixed;
   bottom: max(24px, env(safe-area-inset-bottom));
@@ -915,7 +1001,7 @@ fieldset {
 
 /* Cards keep the same controls and styling across devices. */
 @container (max-width: 340px) {
-  .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .preset-name { font-size: 13px; max-width: calc(100% - 12px); }
 }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
   .app-shell { max-width: calc(1064px + var(--scrollbar-space)); }
@@ -924,16 +1010,15 @@ fieldset {
     gap: 32px;
     align-items: start;
   }
-  .feedback-page { padding-top: 4px; }
   .settings-preview { display: none; }
 }
 
 /* Exercise mode */
-.install-footer, .preset-options, .display-options, .hold-options, .skip-link, .settings-link {
+.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .settings-link {
   transition: opacity .3s ease, visibility 0s linear;
 }
 .is-zen .install-footer, .is-zen .settings-link, .is-zen .settings-preview,
-.is-zen .preset-options, .is-zen .display-options, .is-zen .hold-options, .is-zen .skip-link {
+.is-zen .preset-options, .is-zen .display-options, .is-zen .hold-options, .is-zen .data-options, .is-zen .skip-link {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -967,10 +1052,11 @@ fieldset {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  /* Keep the requested timing editor expansion; quiet other transitions. */
+  *:not(.duration-picker, .duration-step, .reset-confirmation, .reset-confirmation-content), *::before, *::after {
     transition: none !important;
   }
-  /* Keep transitions quiet; breathing and hold previews still demonstrate their effects. */
+  /* Breathing and hold previews still demonstrate their effects. */
   .breathing-visual[data-state="idle"] .breathing-orb {
     will-change: auto;
   }

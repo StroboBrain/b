@@ -142,7 +142,7 @@ export class SectionScroller {
   }
 
   #excludedTarget(target) {
-    return Boolean(target?.closest?.('input, select, textarea, [contenteditable="true"], .duration-picker, dialog, .notification'));
+    return Boolean(target?.closest?.('input, select, textarea, [contenteditable="true"], .duration-picker, [popover], dialog, .notification'));
   }
 
   #eventTime(event) {

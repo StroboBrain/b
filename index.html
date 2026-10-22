@@ -29,6 +29,7 @@
     <link rel="modulepreload" href="./js/settings-preview.js">
     <link rel="modulepreload" href="./js/install-prompt.js">
     <link rel="modulepreload" href="./js/outside-dismissal.js">
+    <link rel="modulepreload" href="./js/reset-confirmation.js">
     <link rel="modulepreload" href="./js/viewport-layout.js">
     <link rel="modulepreload" href="./js/section-scroller.js">
     <script type="module" src="./js/main.js"></script>
@@ -80,44 +81,52 @@
                   </li>
                 </ol>
                 <div id="inhale-picker" class="duration-picker" popover="auto" role="dialog" aria-label="inhale duration">
-                  <button id="inhale-increase" class="duration-step" type="button" data-field="inhale" data-step="1" aria-label="increase inhale duration by one second" title="+1 second">++</button>
-                  <button id="inhale-fine-increase" class="duration-step duration-fine-step" type="button" data-field="inhale" data-step="0.1" aria-label="increase inhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
-                  <button class="duration-button picker-done picker-center" type="button" data-field="inhale" aria-label="close inhale adjustment">
-                    <span class="phase-label">inhale</span>
-                    <output id="inhale-picked-value" class="picker-value" for="inhale-increase inhale-fine-increase inhale-fine-decrease inhale-decrease" aria-live="polite" aria-atomic="true">4s</output>
-                  </button>
-                  <button id="inhale-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="inhale" data-step="-0.1" aria-label="decrease inhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
-                  <button id="inhale-decrease" class="duration-step" type="button" data-field="inhale" data-step="-1" aria-label="decrease inhale duration by one second" title="-1 second">--</button>
+                  <div id="inhale-picker-content" class="picker-content">
+                    <button id="inhale-increase" class="duration-step" type="button" data-field="inhale" data-step="1" aria-label="increase inhale duration by one second" title="+1 second">++</button>
+                    <button id="inhale-fine-increase" class="duration-step duration-fine-step" type="button" data-field="inhale" data-step="0.1" aria-label="increase inhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
+                    <button class="duration-button picker-done picker-center" type="button" data-field="inhale" aria-label="close inhale adjustment">
+                      <span class="phase-label">inhale</span>
+                      <output id="inhale-picked-value" class="picker-value" for="inhale-increase inhale-fine-increase inhale-fine-decrease inhale-decrease" aria-live="polite" aria-atomic="true">4s</output>
+                    </button>
+                    <button id="inhale-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="inhale" data-step="-0.1" aria-label="decrease inhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
+                    <button id="inhale-decrease" class="duration-step" type="button" data-field="inhale" data-step="-1" aria-label="decrease inhale duration by one second" title="-1 second">--</button>
+                  </div>
                 </div>
                 <div id="holdIn-picker" class="duration-picker" popover="auto" role="dialog" aria-label="hold after inhale duration">
-                  <button id="holdIn-increase" class="duration-step" type="button" data-field="holdIn" data-step="1" aria-label="increase hold after inhale duration by one second" title="+1 second">++</button>
-                  <button id="holdIn-fine-increase" class="duration-step duration-fine-step" type="button" data-field="holdIn" data-step="0.1" aria-label="increase hold after inhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
-                  <button class="duration-button picker-done picker-center" type="button" data-field="holdIn" aria-label="close hold after inhale adjustment">
-                    <span class="phase-label">hold</span>
-                    <output id="holdIn-picked-value" class="picker-value" for="holdIn-increase holdIn-fine-increase holdIn-fine-decrease holdIn-decrease" aria-live="polite" aria-atomic="true">4s</output>
-                  </button>
-                  <button id="holdIn-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="holdIn" data-step="-0.1" aria-label="decrease hold after inhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
-                  <button id="holdIn-decrease" class="duration-step" type="button" data-field="holdIn" data-step="-1" aria-label="decrease hold after inhale duration by one second" title="-1 second">--</button>
+                  <div id="holdIn-picker-content" class="picker-content">
+                    <button id="holdIn-increase" class="duration-step" type="button" data-field="holdIn" data-step="1" aria-label="increase hold after inhale duration by one second" title="+1 second">++</button>
+                    <button id="holdIn-fine-increase" class="duration-step duration-fine-step" type="button" data-field="holdIn" data-step="0.1" aria-label="increase hold after inhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
+                    <button class="duration-button picker-done picker-center" type="button" data-field="holdIn" aria-label="close hold after inhale adjustment">
+                      <span class="phase-label">hold</span>
+                      <output id="holdIn-picked-value" class="picker-value" for="holdIn-increase holdIn-fine-increase holdIn-fine-decrease holdIn-decrease" aria-live="polite" aria-atomic="true">4s</output>
+                    </button>
+                    <button id="holdIn-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="holdIn" data-step="-0.1" aria-label="decrease hold after inhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
+                    <button id="holdIn-decrease" class="duration-step" type="button" data-field="holdIn" data-step="-1" aria-label="decrease hold after inhale duration by one second" title="-1 second">--</button>
+                  </div>
                 </div>
                 <div id="exhale-picker" class="duration-picker" popover="auto" role="dialog" aria-label="exhale duration">
-                  <button id="exhale-increase" class="duration-step" type="button" data-field="exhale" data-step="1" aria-label="increase exhale duration by one second" title="+1 second">++</button>
-                  <button id="exhale-fine-increase" class="duration-step duration-fine-step" type="button" data-field="exhale" data-step="0.1" aria-label="increase exhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
-                  <button class="duration-button picker-done picker-center" type="button" data-field="exhale" aria-label="close exhale adjustment">
-                    <span class="phase-label">exhale</span>
-                    <output id="exhale-picked-value" class="picker-value" for="exhale-increase exhale-fine-increase exhale-fine-decrease exhale-decrease" aria-live="polite" aria-atomic="true">4s</output>
-                  </button>
-                  <button id="exhale-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="exhale" data-step="-0.1" aria-label="decrease exhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
-                  <button id="exhale-decrease" class="duration-step" type="button" data-field="exhale" data-step="-1" aria-label="decrease exhale duration by one second" title="-1 second">--</button>
+                  <div id="exhale-picker-content" class="picker-content">
+                    <button id="exhale-increase" class="duration-step" type="button" data-field="exhale" data-step="1" aria-label="increase exhale duration by one second" title="+1 second">++</button>
+                    <button id="exhale-fine-increase" class="duration-step duration-fine-step" type="button" data-field="exhale" data-step="0.1" aria-label="increase exhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
+                    <button class="duration-button picker-done picker-center" type="button" data-field="exhale" aria-label="close exhale adjustment">
+                      <span class="phase-label">exhale</span>
+                      <output id="exhale-picked-value" class="picker-value" for="exhale-increase exhale-fine-increase exhale-fine-decrease exhale-decrease" aria-live="polite" aria-atomic="true">4s</output>
+                    </button>
+                    <button id="exhale-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="exhale" data-step="-0.1" aria-label="decrease exhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
+                    <button id="exhale-decrease" class="duration-step" type="button" data-field="exhale" data-step="-1" aria-label="decrease exhale duration by one second" title="-1 second">--</button>
+                  </div>
                 </div>
                 <div id="holdOut-picker" class="duration-picker" popover="auto" role="dialog" aria-label="hold after exhale duration">
-                  <button id="holdOut-increase" class="duration-step" type="button" data-field="holdOut" data-step="1" aria-label="increase hold after exhale duration by one second" title="+1 second">++</button>
-                  <button id="holdOut-fine-increase" class="duration-step duration-fine-step" type="button" data-field="holdOut" data-step="0.1" aria-label="increase hold after exhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
-                  <button class="duration-button picker-done picker-center" type="button" data-field="holdOut" aria-label="close hold after exhale adjustment">
-                    <span class="phase-label">hold</span>
-                    <output id="holdOut-picked-value" class="picker-value" for="holdOut-increase holdOut-fine-increase holdOut-fine-decrease holdOut-decrease" aria-live="polite" aria-atomic="true">4s</output>
-                  </button>
-                  <button id="holdOut-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="holdOut" data-step="-0.1" aria-label="decrease hold after exhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
-                  <button id="holdOut-decrease" class="duration-step" type="button" data-field="holdOut" data-step="-1" aria-label="decrease hold after exhale duration by one second" title="-1 second">--</button>
+                  <div id="holdOut-picker-content" class="picker-content">
+                    <button id="holdOut-increase" class="duration-step" type="button" data-field="holdOut" data-step="1" aria-label="increase hold after exhale duration by one second" title="+1 second">++</button>
+                    <button id="holdOut-fine-increase" class="duration-step duration-fine-step" type="button" data-field="holdOut" data-step="0.1" aria-label="increase hold after exhale duration by 0.1 seconds" title="+0.1 seconds">+</button>
+                    <button class="duration-button picker-done picker-center" type="button" data-field="holdOut" aria-label="close hold after exhale adjustment">
+                      <span class="phase-label">hold</span>
+                      <output id="holdOut-picked-value" class="picker-value" for="holdOut-increase holdOut-fine-increase holdOut-fine-decrease holdOut-decrease" aria-live="polite" aria-atomic="true">4s</output>
+                    </button>
+                    <button id="holdOut-fine-decrease" class="duration-step duration-fine-step" type="button" data-field="holdOut" data-step="-0.1" aria-label="decrease hold after exhale duration by 0.1 seconds" title="-0.1 seconds">-</button>
+                    <button id="holdOut-decrease" class="duration-step" type="button" data-field="holdOut" data-step="-1" aria-label="decrease hold after exhale duration by one second" title="-1 second">--</button>
+                  </div>
                 </div>
               </fieldset>
 
@@ -126,7 +135,7 @@
                 <div id="preset-tiles" class="preset-tiles" role="radiogroup" aria-label="breathing patterns"></div>
               </fieldset>
               <p id="settings-note" class="settings-note" role="status"></p>
-              <button id="display-settings-button" class="button button-outline settings-link" type="button" aria-controls="display-settings">display settings</button>
+              <button id="display-settings-button" class="button button-outline settings-link" type="button" aria-controls="display-settings"><span class="nav-arrow nav-arrow-down" aria-hidden="true"></span><span>display settings</span><span class="nav-arrow nav-arrow-down" aria-hidden="true"></span></button>
             </div>
           </section>
           <section id="display-settings" tabindex="-1" class="feedback-page app-page" data-page="feedback" aria-label="display and hold feedback settings">
@@ -161,7 +170,7 @@
               </div>
             </fieldset>
             <fieldset id="hold-feedback-fields" class="hold-options">
-              <legend id="hold-feedback-heading">hold feedback settings<span class="hold-empty-note label-detail"> (no hold selected)</span></legend>
+              <legend id="hold-feedback-heading">hold feedback settings</legend>
               <div id="hold-choices" class="hold-choices" role="radiogroup" aria-labelledby="hold-feedback-heading">
                 <label class="hold-choice" data-hold-feedback="rise" title="fill from the bottom">
                   <input class="sr-only" type="radio" name="hold-feedback" value="rise" checked>
@@ -185,10 +194,23 @@
                 </label>
               </div>
             </fieldset>
+            <div class="data-options">
+              <p id="clear-local-data-note" class="settings-note">restore the default patterns and display settings on this device.</p>
+              <button id="clear-local-data-button" class="button button-outline" type="button" aria-describedby="clear-local-data-note" aria-haspopup="dialog" aria-controls="reset-confirmation" aria-expanded="false">reselt all data</button>
+              <div id="reset-confirmation" class="reset-confirmation" popover="auto" role="alertdialog" aria-label="reselt all data" aria-describedby="reset-warning" tabindex="-1">
+                <div id="reset-confirmation-content" class="reset-confirmation-content">
+                  <p id="reset-warning">remove saved changes and restore defaults?</p>
+                  <div class="reset-actions">
+                    <button id="reset-confirm-button" class="button button-outline" type="button">are you sure</button>
+                    <button id="reset-cancel-button" class="button button-outline" type="button">cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <footer class="install-footer">
               <button id="install-button" class="button button-outline" type="button" hidden>install app</button>
             </footer>
-            <button id="back-to-breathing-button" class="button button-outline settings-link" type="button" aria-controls="practice">back to breathing</button>
+            <button id="back-to-breathing-button" class="button button-outline settings-link" type="button" aria-controls="practice"><span class="nav-arrow nav-arrow-up" aria-hidden="true"></span><span>back to breathing</span><span class="nav-arrow nav-arrow-up" aria-hidden="true"></span></button>
           </section>
         </div>
       </main>

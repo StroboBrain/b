@@ -5,6 +5,7 @@ import { visibleViewport } from './viewport-layout.js';
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
+const STEP_REVEAL_DELAY_MS = 160;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls; every accepted
@@ -21,6 +22,8 @@ export class DurationPicker {
   #listeners = [];
   #outsideDismissal;
   #viewportBounds;
+  #resizeObserver;
+  #revealSequence = null;
 
   constructor({ document, window, container, onChange, canChange = () => true } = {}) {
     if (typeof document?.getElementById !== 'function' || typeof document.addEventListener !== 'function'
@@ -35,7 +38,7 @@ export class DurationPicker {
     this.#onChange = onChange;
     this.#canChange = canChange;
     this.#controls = Object.fromEntries(PHASES.map((phase) => {
-      const controls = Object.fromEntries(['value', 'picker', 'picked-value', 'decrease', 'increase', 'fine-decrease', 'fine-increase']
+      const controls = Object.fromEntries(['value', 'picker', 'picker-content', 'picked-value', 'decrease', 'increase', 'fine-decrease', 'fine-increase']
         .map((suffix) => [suffix, document.getElementById(`${phase}-${suffix}`)]));
       if (Object.values(controls).some((element) => !element)) {
         throw new Error(`DurationPicker is missing controls for ${phase}.`);
@@ -46,6 +49,18 @@ export class DurationPicker {
     this.#outsideDismissal = new OutsideDismissal({ document,
       surface: () => Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'))?.picker,
       onDismiss: () => this.close(),
+      isInside: (event, surface) => {
+        // Another timing is a direct destination. Let its complete gesture
+        // reach the trigger while unrelated controls remain dismiss-only.
+        const button = event.target?.closest?.('button');
+        if (button && !button.matches(':disabled') && this.#canChange()
+          && Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface)) return true;
+        if (typeof event.composedPath === 'function') return event.composedPath().includes(surface);
+        for (let element = event.target; element; element = element.parentElement) {
+          if (element === surface) return true;
+        }
+        return false;
+      },
     });
 
     this.#listen(container, 'pointerdown', (event) => this.#startPress(event));
@@ -71,13 +86,28 @@ export class DurationPicker {
     });
     this.#listen(document, 'visibilitychange', () => { if (document.hidden) this.close(); });
     for (const controls of Object.values(this.#controls)) {
+      this.#listen(controls.picker, 'scroll', () => this.#revealButtons(controls));
+      this.#listen(controls.picker, 'transitionend', (event) => {
+        if (event.target === controls.picker && event.propertyName === 'height') this.#revealButtons(controls);
+      });
       this.#listen(controls.picker, 'toggle', () => {
         const open = controls.picker.matches(':popover-open');
         controls.value.setAttribute('aria-expanded', String(open));
         if (!open) {
           this.#finishPress();
+          this.#cancelReveal(controls);
+          this.#revealButtons(controls);
         }
       });
+    }
+    if (typeof window.ResizeObserver === 'function') {
+      this.#resizeObserver = new window.ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const controls = Object.values(this.#controls).find(({ picker }) => picker === entry.target);
+          if (controls) this.#revealButtons(controls);
+        }
+      });
+      for (const { picker } of Object.values(this.#controls)) this.#resizeObserver.observe(picker);
     }
   }
 
@@ -88,13 +118,17 @@ export class DurationPicker {
 
   close() {
     this.#finishPress();
+    const controls = this.#revealSequence?.controls;
+    this.#cancelReveal(controls);
     for (const { picker } of Object.values(this.#controls)) {
       if (picker.matches(':popover-open')) picker.hidePopover();
     }
+    if (controls) this.#revealButtons(controls);
   }
 
   dispose() {
     this.close();
+    this.#resizeObserver?.disconnect();
     this.#outsideDismissal.dispose();
     for (const remove of this.#listeners) remove();
     this.#listeners = [];
@@ -194,22 +228,23 @@ export class DurationPicker {
     controls['fine-increase'].disabled = controls.increase.disabled;
   }
 
-  #open(phase, event) {
-    const { value: trigger, picker, increase } = this.#controls[phase];
+  #open(phase) {
+    const controls = this.#controls[phase];
+    const { value: trigger, picker, 'picked-value': output } = controls;
     if (picker.matches(':popover-open')) {
-      picker.hidePopover();
+      this.close();
       return;
     }
     this.close();
+    this.#revealSequence = { controls, stage: 0, timer: null };
     trigger.focus({ preventScroll: true });
     const anchor = trigger.getBoundingClientRect();
-    const origin = event.detail > 0 && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
-      ? { x: event.clientX, y: event.clientY }
-      : { x: anchor.left + anchor.width / 2, y: anchor.top + anchor.height / 2 };
+    // Supply the starting box before native popover layout creates its transitions.
+    picker.style.setProperty('--picker-closed-height', `${anchor.height}px`);
+    picker.style.setProperty('--picker-closed-top', `${anchor.top}px`);
     picker.showPopover();
-    this.#position(phase, visibleViewport(this.#window), origin);
-    const focus = increase.disabled ? this.#controls[phase].decrease : increase;
-    focus.focus({ preventScroll: true });
+    this.#position(phase, visibleViewport(this.#window));
+    output.closest('.picker-center').focus({ preventScroll: true });
   }
 
   #positionOpenPicker() {
@@ -219,8 +254,9 @@ export class DurationPicker {
     if (entry) this.#position(entry[0], bounds);
   }
 
-  #position(phase, bounds = visibleViewport(this.#window), origin) {
-    const { value: trigger, picker, 'picked-value': output } = this.#controls[phase];
+  #position(phase, bounds = visibleViewport(this.#window)) {
+    const controls = this.#controls[phase];
+    const { value: trigger, picker, 'picker-content': content } = controls;
     const anchor = trigger.getBoundingClientRect();
     const { left, top, width, height } = bounds;
     this.#viewportBounds = bounds;
@@ -230,18 +266,65 @@ export class DurationPicker {
     picker.style.width = `${Math.max(52, anchor.width)}px`;
     picker.style.maxWidth = `${viewportWidth}px`;
     picker.style.maxHeight = `${Math.max(0, height - 16)}px`;
-    const center = output.closest('.picker-center') ?? output;
-    const centerOffset = center.offsetTop + center.offsetHeight / 2;
-    picker.style.setProperty('--picker-closed-scale', String(Math.min(1, anchor.height / picker.offsetHeight)));
+    picker.dataset.compact = String(height < 272);
+    const openHeight = Math.min(content.offsetHeight + 8, Math.max(0, height - 16));
+    controls.openHeight = openHeight;
+    picker.dataset.scrollable = String(content.offsetHeight + 8 > openHeight);
     const pickerLeft = Math.max(left + 8, Math.min(anchor.left + (anchor.width - picker.offsetWidth) / 2, left + width - picker.offsetWidth - 8));
-    const pickerTop = Math.max(top + 8, Math.min(anchor.top + anchor.height / 2 - centerOffset, top + height - picker.offsetHeight - 8));
+    const pickerTop = Math.max(top + 8, Math.min(anchor.top + (anchor.height - openHeight) / 2, top + height - openHeight - 8));
     picker.style.left = `${pickerLeft}px`;
-    picker.style.top = `${pickerTop}px`;
-    if (origin) {
-      // Read unscaled layout sizes so the opening animation cannot shift the
-      // column. Each opening grows from its own pointer or keyboard origin.
-      picker.style.setProperty('--picker-origin-x', `${origin.x - pickerLeft}px`);
-      picker.style.setProperty('--picker-origin-y', `${origin.y - pickerTop}px`);
+    picker.style.setProperty('--picker-closed-height', `${anchor.height}px`);
+    picker.style.setProperty('--picker-open-height', `${openHeight}px`);
+    picker.style.setProperty('--picker-closed-top', `${anchor.top}px`);
+    picker.style.setProperty('--picker-open-top', `${pickerTop}px`);
+    this.#revealButtons(controls);
+  }
+
+  #revealButtons(controls) {
+    const { picker } = controls;
+    const bounds = picker.getBoundingClientRect();
+    const top = bounds.top + picker.clientTop;
+    const bottom = top + picker.clientHeight;
+    const moving = picker.getAnimations?.().some(animation => animation.transitionProperty === 'height'
+      && animation.playState !== 'finished') ?? false;
+    const fullyExpanded = picker.matches(':popover-open') && Math.abs(bounds.height - controls.openHeight) < .1 && !moving;
+    const sequence = this.#revealSequence;
+    if (sequence?.controls === controls) {
+      if (!fullyExpanded) {
+        this.#window.clearTimeout(sequence.timer);
+        sequence.timer = null;
+        sequence.stage = 0;
+      } else if (sequence.stage === 0) {
+        // The actual height transition finishes first; the nearby fine steps
+        // then fade in before the outer whole-second steps become available.
+        sequence.stage = 1;
+        sequence.timer = this.#window.setTimeout(() => {
+          if (this.#revealSequence !== sequence) return;
+          sequence.timer = null;
+          sequence.stage = 2;
+          this.#revealButtons(controls);
+        }, STEP_REVEAL_DELAY_MS);
+      }
     }
+    const stage = fullyExpanded && sequence?.controls === controls ? sequence.stage : 0;
+    // Read all geometry before changing visibility, so each button does not
+    // force another style calculation for the next button in the same frame.
+    const visibility = [controls.increase, controls['fine-increase'], controls['fine-decrease'], controls.decrease].map((button) => {
+      const box = button.getBoundingClientRect();
+      const fine = button === controls['fine-increase'] || button === controls['fine-decrease'];
+      const revealed = stage >= (fine ? 1 : 2) && box.top >= top - .1 && box.bottom <= bottom + .1;
+      return { button, revealed };
+    });
+    for (const { button, revealed } of visibility) {
+      if (button.dataset.revealed === String(revealed)) continue;
+      button.dataset.revealed = String(revealed);
+      button.inert = !revealed;
+    }
+  }
+
+  #cancelReveal(controls) {
+    if (!this.#revealSequence || this.#revealSequence.controls !== controls) return;
+    this.#window.clearTimeout(this.#revealSequence.timer);
+    this.#revealSequence = null;
   }
 }

@@ -13,6 +13,7 @@ import { SettingsPreview } from './settings-preview.js';
 import { InstallPrompt } from './install-prompt.js';
 import { SectionScroller } from './section-scroller.js';
 import { OutsideDismissal } from './outside-dismissal.js';
+import { ResetConfirmation } from './reset-confirmation.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const TOGGLE_PREFERENCES = {
@@ -29,7 +30,8 @@ export const REQUIRED_IDS = Object.freeze([
   'phase-count', 'phase-track', 'phase-announcement', 'session-button',
   'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields',
   'preset-tiles', 'preset-fields', 'settings-note', 'timing-fields', 'settings-preview',
-  'install-button', 'display-settings', 'display-settings-button', 'back-to-breathing-button', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
+  'install-button', 'clear-local-data-button', 'reset-confirmation', 'reset-confirm-button', 'reset-cancel-button',
+  'display-settings', 'display-settings-button', 'back-to-breathing-button', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
   ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-fine-decrease`, `${phase}-fine-increase`, `${phase}-picker`, `${phase}-picked-value`, `track-${phase}`]),
 ]);
 
@@ -71,6 +73,7 @@ export class BreathingApp {
   #preferences;
   #zenMode = false;
   #sections;
+  #resetConfirmation;
 
   constructor({ document = globalThis.document, window = globalThis.window,
     store = new PresetStore(), engine = new BreathingEngine() } = {}) {
@@ -79,7 +82,7 @@ export class BreathingApp {
     this.#elements = collectElements(document);
     this.#store = store;
     this.#sessionView = new SessionView({ elements: this.#elements });
-    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .skip-link, .settings-link, .settings-preview'));
+    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .settings-link, .settings-preview'));
     this.#wakeLock = new WakeLockGuard({ navigator: window.navigator, document });
     this.#cues = new PhaseCues({ window, document });
     this.#session = new SessionDriver({ engine,
@@ -112,6 +115,11 @@ export class BreathingApp {
     } });
     this.#preview = new SettingsPreview({ document, window, container: this.#elements['settings-preview'] });
     this.#sections = new SectionScroller({ document, window });
+    this.#resetConfirmation = new ResetConfirmation({ document, window,
+      button: this.#elements['clear-local-data-button'], panel: this.#elements['reset-confirmation'],
+      confirmButton: this.#elements['reset-confirm-button'], cancelButton: this.#elements['reset-cancel-button'],
+      canOpen: () => this.#status === 'idle', onConfirm: () => this.#clearLocalData(),
+    });
     this.#bindEvents();
     this.#syncSettings();
     this.#syncPreferences();
@@ -129,6 +137,7 @@ export class BreathingApp {
       ui[button].addEventListener('click', () => {
         if (this.#status !== 'idle') return;
         this.#durationPicker.close();
+        this.#resetConfirmation.close();
         this.#sections.goTo(ui[page]);
         ui[page].focus({ preventScroll: true });
       });
@@ -215,7 +224,6 @@ export class BreathingApp {
       step.classList.toggle('is-skipped', value === 0);
       step.setAttribute('aria-label', `${phaseDescription(field)}: ${value === 0 ? 'skipped' : spokenDuration(value)}`);
     }
-    ui['hold-feedback-fields'].disabled = this.#config.holdIn === 0 && this.#config.holdOut === 0;
     this.#syncPresetControls();
   }
 
@@ -239,6 +247,29 @@ export class BreathingApp {
     this.#elements['settings-note'].textContent = 'storage unavailable. changes are for this visit.';
     if (!this.#storageWarningShown) this.#notify('changes could not be saved on this device.');
     this.#storageWarningShown = true;
+  }
+
+  #clearLocalData() {
+    if (this.#status !== 'idle') return false;
+    try {
+      this.#store.clearLocalData();
+    } catch (error) {
+      if (!(error instanceof PersistenceError)) throw error;
+      this.#notify('could not clear all local data. try again.');
+      return false;
+    }
+    this.#durationPicker.close();
+    // Discard pending edits too, so a later pagehide cannot restore cleared data.
+    this.#editor = new PresetEditor({ store: this.#store, onStorageError: () => this.#reportStorageFailure() });
+    this.#preferences = this.#store.loadPreferences();
+    this.#presetsChanged = false;
+    this.#storageWarningShown = false;
+    this.#elements['settings-note'].textContent = '';
+    this.#syncSettings();
+    this.#syncPreferences();
+    this.#render(this.#session.snapshot);
+    this.#notify('all local data cleared.');
+    return true;
   }
 
   /** Restore controls and keep guides hidden until their saved preference is applied. */
@@ -280,6 +311,7 @@ export class BreathingApp {
 
   #toggleSession() {
     this.#durationPicker.close();
+    this.#resetConfirmation.close();
     const status = this.#status;
     if (status === 'running') {
       this.#navigation.leave();
@@ -303,6 +335,7 @@ export class BreathingApp {
     this.#sessionView.render(snapshot, { inhale: this.#config.inhale });
     this.#syncTimingVisibility();
     this.#preview.setEnabled(snapshot.status === 'idle');
+    this.#elements['clear-local-data-button'].disabled = snapshot.status !== 'idle';
     if (snapshot.status === 'idle') this.#offlineSupport?.applyPendingUpdate();
   }
 

@@ -165,6 +165,44 @@ export class PresetStore {
     return { ...normalizedPreferences };
   }
 
+  /** Remove this app's current and legacy local data, leaving other origin data alone.
+   * Throws PersistenceError when storage cannot be read or a removal cannot be confirmed.
+   * Snapshot before changing anything; a failed removal restores prior values when possible.
+   */
+  clearLocalData() {
+    let storage;
+    const snapshot = new Map();
+    try {
+      storage = this.#requireStorage();
+      const count = storage.length;
+      if (!Number.isInteger(count) || count < 0) throw new Error('Local storage cannot be enumerated.');
+      for (let index = 0; index < count; index += 1) {
+        const key = storage.key(index);
+        if (typeof key !== 'string') throw new Error('Local storage changed while reading saved data.');
+        if (!key.startsWith('breathing.')) continue;
+        const value = storage.getItem(key);
+        if (value !== null) snapshot.set(key, value);
+      }
+    } catch (cause) {
+      throw new PersistenceError(cause);
+    }
+
+    const attempted = [];
+    try {
+      for (const [key, value] of snapshot) {
+        attempted.push([key, value]);
+        storage.removeItem(key);
+        if (storage.getItem(key) !== null) throw new Error('Local data could not be removed.');
+      }
+    } catch (cause) {
+      const failures = [cause];
+      for (const [key, value] of attempted) {
+        try { storage.setItem(key, value); } catch (error) { failures.push(error); }
+      }
+      throw new PersistenceError(failures.length === 1 ? cause : new AggregateError(failures));
+    }
+  }
+
   #requireStorage() {
     if (!this.#storage) throw new Error('Local storage is unavailable.');
     return this.#storage;
