@@ -26,13 +26,14 @@ export class DurationPicker {
   #resizeObserver;
   #revealSequence = null;
 
-  constructor({ document, window, container, onChange, canChange = () => true } = {}) {
+  constructor({ document, window, container, onChange, canChange = () => true,
+    canActivateOutside = () => false } = {}) {
     if (typeof document?.getElementById !== 'function' || typeof document.addEventListener !== 'function'
       || typeof window?.addEventListener !== 'function' || typeof window.setTimeout !== 'function'
       || typeof window.clearTimeout !== 'function' || typeof container?.addEventListener !== 'function') {
       throw new TypeError('DurationPicker requires a document, window and timing container.');
     }
-    if ([onChange, canChange].some((callback) => typeof callback !== 'function')) {
+    if ([onChange, canChange, canActivateOutside].some((callback) => typeof callback !== 'function')) {
       throw new TypeError('DurationPicker requires change and editing callbacks.');
     }
     this.#window = window;
@@ -51,11 +52,12 @@ export class DurationPicker {
       surface: () => Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'))?.picker,
       onDismiss: () => this.close(),
       isInside: (event, surface) => {
-        // Another timing is a direct destination. Let its complete gesture
-        // reach the trigger while unrelated controls remain dismiss-only.
+        // Another timing or explicit page navigation is a direct destination.
+        // Other outside controls still consume the gesture for dismissal.
         const button = event.target?.closest?.('button');
         if (button && !button.matches(':disabled') && this.#canChange()
-          && Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface)) return true;
+          && (canActivateOutside(button)
+            || Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface))) return true;
         if (typeof event.composedPath === 'function') return event.composedPath().includes(surface);
         for (let element = event.target; element; element = element.parentElement) {
           if (element === surface) return true;
@@ -117,12 +119,15 @@ export class DurationPicker {
     for (const phase of PHASES) this.#renderValue(phase);
   }
 
-  close() {
+  close({ immediately = false } = {}) {
     this.#finishPress();
     const controls = this.#revealSequence?.controls;
     this.#cancelReveal(controls);
     for (const { picker } of Object.values(this.#controls)) {
       if (picker.matches(':popover-open')) picker.hidePopover();
+      // A page change must also remove any native light-dismissal exit that
+      // started before the navigation click reached the app.
+      if (immediately) for (const animation of picker.getAnimations?.() ?? []) animation.finish?.();
     }
     if (controls) this.#revealButtons(controls);
   }

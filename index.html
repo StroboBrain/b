@@ -29,7 +29,6 @@
     <link rel="modulepreload" href="./js/settings-preview.js">
     <link rel="modulepreload" href="./js/install-prompt.js">
     <link rel="modulepreload" href="./js/outside-dismissal.js">
-    <link rel="modulepreload" href="./js/reset-confirmation.js">
     <link rel="modulepreload" href="./js/return-navigation.js">
     <link rel="modulepreload" href="./js/viewport-layout.js">
     <link rel="modulepreload" href="./js/portrait-orientation.js">
@@ -60,6 +59,7 @@
               <button id="session-button" class="button button-primary" type="button" disabled><span id="session-button-icon" class="icon-play" aria-hidden="true"></span><span id="session-button-label" class="sr-only">start</span></button>
               <fieldset id="timing-fields" class="phase-timings">
                 <legend>timings</legend>
+                <p id="pattern-edit-hint" class="pattern-edit-hint" role="status" hidden>change the timings here<span class="pattern-hint-arrow" aria-hidden="true"></span></p>
                 <ol id="phase-track" class="phase-track" aria-label="breathing sequence">
                   <li class="phase-step" data-phase="inhale">
                     <button id="inhale-value" class="duration-button" type="button" data-field="inhale" value="4" aria-haspopup="dialog" aria-controls="inhale-picker" aria-expanded="false" aria-label="adjust inhale duration, 4 seconds">
@@ -139,7 +139,7 @@
               <p id="settings-note" class="settings-note" role="status"></p>
               <div class="section-navigation">
                 <span class="nav-arrow nav-arrow-down" aria-hidden="true"></span>
-                <button id="display-settings-button" class="button button-outline settings-link" type="button" aria-controls="display-settings">settings</button>
+                <button id="display-settings-button" class="button button-outline settings-link" type="button" aria-controls="display-settings">show settings</button>
                 <span class="nav-arrow nav-arrow-down" aria-hidden="true"></span>
               </div>
             </div>
@@ -164,22 +164,22 @@
               <fieldset class="phase-timings" aria-hidden="true">
                 <legend>timings</legend>
                 <ol id="preview-track" class="phase-track">
-                  <li class="phase-step" data-phase="inhale"><span>inhale</span><span class="phase-time">4s</span></li>
-                  <li class="phase-step" data-phase="holdIn"><span>hold</span><span class="phase-time">4s</span></li>
-                  <li class="phase-step" data-phase="exhale"><span>exhale</span><span class="phase-time">4s</span></li>
-                  <li class="phase-step" data-phase="holdOut"><span>hold</span><span class="phase-time">4s</span></li>
+                  <li class="phase-step" data-phase="inhale"><span class="duration-button"><span class="phase-label">inhale</span><span class="phase-time">4s</span></span></li>
+                  <li class="phase-step" data-phase="holdIn"><span class="duration-button"><span class="phase-label">hold</span><span class="phase-time">4s</span></span></li>
+                  <li class="phase-step" data-phase="exhale"><span class="duration-button"><span class="phase-label">exhale</span><span class="phase-time">4s</span></span></li>
+                  <li class="phase-step" data-phase="holdOut"><span class="duration-button"><span class="phase-label">hold</span><span class="phase-time">4s</span></span></li>
                 </ol>
               </fieldset>
             </figure>
             <fieldset class="display-options">
               <legend>settings</legend>
               <div class="display-controls">
-                <label class="display-toggle animated-toggle text-toggle"><span class="toggle-label text-toggle-label" aria-hidden="true"><span class="toggle-label-on text-label-on">show text</span><span class="toggle-label-off text-label-off">text hidden</span></span><input id="show-breath-text" class="toggle-mark" type="checkbox" role="switch" aria-label="text" checked></label>
-                <label class="display-toggle"><span>guides</span><input id="show-breath-guides" class="toggle-mark" type="checkbox" role="switch"></label>
-                <label class="display-toggle animated-toggle time-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">show time</span><span class="toggle-label-off">time hidden</span></span><input id="show-breath-numbers" class="toggle-mark" type="checkbox" role="switch" aria-label="time" checked></label>
-                <label class="display-toggle"><span>timings</span><input id="show-phase-timings" class="toggle-mark" type="checkbox" role="switch" checked></label>
-                <label class="display-toggle"><span>stop</span><input id="fade-buttons" class="toggle-mark" type="checkbox" role="switch"></label>
-                <label class="display-toggle animated-toggle sound-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">sound cue</span><span class="toggle-label-off">no sound cue</span></span><input id="sound-cue" class="toggle-mark" type="checkbox" role="switch" aria-label="sound cue"></label>
+                <div class="display-toggle animated-toggle text-toggle"><span class="toggle-label text-toggle-label" aria-hidden="true"><span class="toggle-label-on text-label-on">show text</span><span class="toggle-label-off text-label-off">text hidden</span></span><input id="show-breath-text" class="toggle-mark" type="checkbox" role="switch" aria-label="text" checked></div>
+                <div class="display-toggle"><span id="guides-setting-label">guides</span><input id="show-breath-guides" class="toggle-mark" type="checkbox" role="switch" aria-labelledby="guides-setting-label"></div>
+                <div class="display-toggle animated-toggle time-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">show time</span><span class="toggle-label-off">time hidden</span></span><input id="show-breath-numbers" class="toggle-mark" type="checkbox" role="switch" aria-label="time" checked></div>
+                <div class="display-toggle"><span id="timings-setting-label">timings</span><input id="show-phase-timings" class="toggle-mark" type="checkbox" role="switch" aria-labelledby="timings-setting-label" checked></div>
+                <div class="display-toggle animated-toggle button-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">fade button</span><span class="toggle-label-off">show button</span></span><input id="fade-buttons" class="toggle-mark" type="checkbox" role="switch" aria-label="button visibility"></div>
+                <div class="display-toggle animated-toggle sound-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">sound cue</span><span class="toggle-label-off">no sound cue</span></span><input id="sound-cue" class="toggle-mark" type="checkbox" role="switch" aria-label="sound cue"></div>
               </div>
             </fieldset>
             <fieldset id="hold-feedback-fields" class="hold-options">
@@ -207,19 +207,6 @@
                 </label>
               </div>
             </fieldset>
-            <div class="data-options">
-              <button id="clear-local-data-button" class="button button-outline" type="button" aria-haspopup="dialog" aria-controls="reset-confirmation" aria-expanded="false">reset all data</button>
-              <div id="reset-confirmation" class="reset-confirmation" popover="auto" role="alertdialog" aria-label="reset all data" aria-describedby="reset-warning" tabindex="-1">
-                <div id="reset-confirmation-content" class="reset-confirmation-content">
-                  <p id="reset-warning">remove saved changes and restore defaults? this cannot be undone.</p>
-                  <div class="reset-actions">
-                    <button id="reset-cancel-button" class="button button-outline" type="button">cancel</button>
-                    <button id="reset-confirm-button" class="button button-outline" type="button" aria-label="hold yes for 3 seconds to reset">hold yes</button>
-                  </div>
-                </div>
-                <button id="reset-anchor-cancel" class="button button-outline reset-confirmation-anchor" type="button">cancel</button>
-              </div>
-            </div>
             <footer class="install-footer">
               <button id="install-button" class="button button-outline" type="button" hidden>install app</button>
             </footer>

@@ -36,19 +36,23 @@
   --shadow-deep: #000b;
   --border-notice: #888;
   --scrollbar-space: 0px;
-  --text-caption: 12px;
-  --text-label: 13px;
-  --text-body: 14px;
-  --text-input: 16px;
+  --text-caption: 13px;
+  --text-label: 15px;
+  --text-body: 16px;
+  --text-input: 17px;
 }
 
 /* Base elements and accessibility */
 * {
   box-sizing: border-box;
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 html {
-  scrollbar-gutter: stable;
-  scrollbar-color: var(--line-strong) var(--surface);
   overscroll-behavior-y: none;
 }
 /* Pause native fling momentum while the page glide controls the scroll offset.
@@ -83,7 +87,7 @@ input[type="text"], textarea {
   -webkit-user-select: text;
   user-select: text;
 }
-button, .display-toggle, .hold-choice, .preset-tile {
+button, .hold-choice, .preset-tile {
   cursor: pointer;
 }
 button:disabled, .preset-tile:has(:disabled) {
@@ -129,7 +133,6 @@ button:disabled, .preset-tile:has(:disabled) {
 .skip-link:focus {
   transform: translateY(0);
 }
-/* Balance the right scrollbar with painted page space, not a second native gutter. */
 /* Page layout */
 .app-shell {
   max-width: calc(520px + var(--scrollbar-space));
@@ -139,7 +142,7 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 .app-page {
   min-width: 0;
-  min-height: calc(100svh - 8px);
+  min-height: calc(100dvh - 8px);
   scroll-margin-top: 8px;
 }
 .install-footer {
@@ -164,9 +167,7 @@ button:disabled, .preset-tile:has(:disabled) {
   margin-top: 16px;
 }
 .feedback-page > .hold-options { grid-row: 3; }
-.feedback-page > .data-options { grid-row: 4; }
-.feedback-page > .install-footer { grid-column: 2; grid-row: 4; margin-left: 8px; }
-.feedback-page:has(#install-button:not([hidden])) > .data-options { grid-column: 1; }
+.feedback-page > .install-footer { grid-row: 4; }
 .feedback-page > .section-navigation {
   grid-row: 5;
   min-height: 48px;
@@ -190,7 +191,7 @@ button:disabled, .preset-tile:has(:disabled) {
   min-width: 0;
   background: var(--surface);
   position: relative;
-  padding: 4px 0 12px;
+  padding: 4px 0 max(16px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   container-type: inline-size;
@@ -202,6 +203,7 @@ button:disabled, .preset-tile:has(:disabled) {
   --breath-large: 1.16;
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
 }
 /* Breathing animation and hold effects */
@@ -508,8 +510,12 @@ button:disabled, .preset-tile:has(:disabled) {
   border-radius: 6px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: 16px;
   text-align: left;
+}
+.display-toggle:has(> input:checked) {
+  background: var(--surface-selected);
+  border-color: var(--border-hover);
 }
 .display-toggle > span {
   min-width: 0;
@@ -528,7 +534,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .toggle-label-off { opacity: 0; transform: translateX(-12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-on { opacity: 0; transform: translateX(12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-off { opacity: 1; transform: translateX(0); }
-.sound-toggle > .toggle-label, .time-toggle > .toggle-label { white-space: normal; }
+.sound-toggle > .toggle-label, .time-toggle > .toggle-label, .button-toggle > .toggle-label { white-space: normal; }
 .hold-toggle {
   color: var(--text-control);
   gap: 8px;
@@ -548,7 +554,7 @@ button:disabled, .preset-tile:has(:disabled) {
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--surface-pressed);
-  cursor: inherit;
+  cursor: pointer;
   transition: background-color .18s, border-color .18s;
 }
 .toggle-mark::after {
@@ -581,6 +587,10 @@ button:disabled, .preset-tile:has(:disabled) {
   margin-top: 16px;
   color: var(--text-control);
 }
+.practice-primary > .section-navigation {
+  margin-top: auto;
+  padding-top: 16px;
+}
 .section-navigation:has(> button[hidden]) { display: none; }
 .nav-arrow {
   width: 9px;
@@ -605,6 +615,56 @@ fieldset {
 .preset-options, .display-options, .hold-options {
   margin-top: 12px;
 }
+/* Keep the timings clear while a grey wash draws attention to them. */
+.practice-card:has(#pattern-edit-hint:not([hidden])) { z-index: 10; }
+#timing-fields { position: relative; }
+#timing-fields:has(#pattern-edit-hint:not([hidden])) {
+  z-index: 10;
+  background: var(--surface);
+  box-shadow: 0 0 0 200vmax rgb(72 72 72 / .35);
+}
+.pattern-edit-hint {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-popover);
+  color: var(--text-control);
+  font-size: var(--text-caption);
+  pointer-events: none;
+  animation: hint-enter .4s ease-out both;
+}
+@keyframes hint-enter {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.pattern-hint-arrow {
+  position: relative;
+  width: 9px;
+  height: 20px;
+  flex-shrink: 0;
+  border-left: 1.5px solid currentColor;
+  margin-left: 4px;
+}
+.pattern-hint-arrow::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
 .phase-timings > legend, .preset-options > legend, .display-options > legend, .hold-options > legend {
   padding: 0 6px;
   font-size: var(--text-label);
@@ -612,7 +672,7 @@ fieldset {
   color: var(--text-control);
 }
 .display-options > legend, .hold-options > legend {
-  font-size: 18px;
+  font-size: 20px;
 }
 .hold-choices {
   display: grid;
@@ -633,9 +693,14 @@ fieldset {
   border-radius: 3px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
-.display-toggle:hover:not(:has(:checked, :disabled)), .hold-choice:hover:not(:has(:checked, :disabled)) {
+.hold-choice:has(> input:checked) {
+  border-color: var(--border-selected);
+  background: var(--surface-selected);
+  color: var(--paper);
+}
+.hold-choice:hover:not(:has(:checked, :disabled)) {
   border-color: var(--border-hover);
   background: var(--surface-hover);
 }
@@ -702,12 +767,13 @@ fieldset {
   left: 8px;
   transform: translateY(-50%);
   max-width: calc(100% - 16px);
-  padding: 0 4px;
+  padding: 2px 5px;
+  border-radius: 5px;
   background: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.2;
   font-weight: 500;
   overflow-wrap: anywhere;
@@ -879,98 +945,6 @@ fieldset {
 .settings-note:empty {
   display: none;
 }
-.data-options { margin-top: 16px; }
-.data-options > .button { width: 100%; }
-.reset-confirmation {
-  position: fixed;
-  inset: auto;
-  margin: 0;
-  padding: 3px;
-  width: 280px;
-  max-width: calc(100dvw - 16px);
-  max-height: calc(100dvh - 16px);
-  height: var(--reset-closed-height, 48px);
-  top: var(--reset-closed-top, 0px);
-  overflow: hidden;
-  border: 1px solid var(--border-hover);
-  border-radius: 3px;
-  color: var(--paper);
-  background: var(--surface-popover);
-  box-shadow: 0 8px 32px var(--shadow-deep);
-  pointer-events: none;
-  transition: height .6s cubic-bezier(.4, 0, .2, 1), top .6s cubic-bezier(.4, 0, .2, 1),
-    display .6s allow-discrete, overlay .6s allow-discrete;
-}
-.reset-confirmation:popover-open {
-  display: block;
-  height: var(--reset-open-height, 132px);
-  top: var(--reset-open-top, 0px);
-  pointer-events: auto;
-}
-@starting-style {
-  .reset-confirmation:popover-open {
-    height: var(--reset-closed-height, 48px);
-    top: var(--reset-closed-top, 0px);
-  }
-}
-.reset-confirmation-content {
-  position: absolute;
-  bottom: calc(var(--reset-closed-height, 48px) + 12px);
-  left: 3px;
-  right: 3px;
-  max-height: max(0px, calc(100% - var(--reset-closed-height, 48px) - 20px));
-  overflow-y: auto;
-  padding: 8px;
-  opacity: 0;
-  transition: opacity .15s ease;
-}
-.reset-confirmation:popover-open .reset-confirmation-content {
-  opacity: 1;
-  transition: opacity .25s ease .2s;
-}
-@starting-style {
-  .reset-confirmation:popover-open .reset-confirmation-content { opacity: 0; }
-}
-.reset-confirmation-content p { margin: 0 0 14px; font-size: var(--text-body); }
-.reset-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.reset-actions .button { padding-inline: 8px; }
-#reset-confirm-button {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  touch-action: none;
-}
-#reset-confirm-button::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--line);
-  transform: scaleX(0);
-  transform-origin: left;
-  pointer-events: none;
-}
-#reset-confirm-button[data-holding="true"]::before {
-  /* Immediate feedback, then the remaining progress over the full safe hold. */
-  animation: reset-hold-fill var(--reset-hold-duration, 3000ms) linear forwards !important;
-}
-@keyframes reset-hold-fill {
-  0% { transform: scaleX(0); }
-  6% { transform: scaleX(.25); }
-  100% { transform: scaleX(1); }
-}
-.reset-confirmation-anchor {
-  position: absolute;
-  inset: auto 0 0;
-  display: grid;
-  place-items: center;
-  height: calc(var(--reset-closed-height, 48px) - 2px);
-  width: 100%;
-  border: 0;
-  border-top: 1px solid var(--line-strong);
-  border-radius: 0 0 2px 2px;
-  color: var(--text-control);
-}
 .notification {
   position: fixed;
   bottom: max(24px, env(safe-area-inset-bottom));
@@ -1031,7 +1005,7 @@ fieldset {
   transform: translateY(-50%);
   background: var(--surface);
   color: var(--text-control);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 500;
 }
 .settings-preview .breathing-visual {
@@ -1073,15 +1047,16 @@ fieldset {
   margin: 0;
   padding: 6px;
 }
-.settings-preview .phase-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.settings-preview .phase-step {
-  display: flex;
+.settings-preview .phase-track { --phase-gap: 3px; }
+.settings-preview .phase-step { min-height: 0; }
+.settings-preview .duration-button {
+  width: 100%;
+  min-height: 38px;
   gap: 2px;
-  min-height: 24px;
-  padding: 2px;
+  padding: 4px 1px;
   font-size: 11px;
+  pointer-events: none;
 }
-.settings-preview .phase-step[aria-current="step"] { background: var(--surface-selected); }
 .settings-preview[data-show-text="false"] .phase-caption,
 .settings-preview[data-show-time="false"] .phase-count { display: none; }
 .settings-preview[data-show-timings="false"] .phase-timings { visibility: hidden; }
@@ -1099,15 +1074,15 @@ fieldset {
   .settings-preview { grid-template-columns: 80px minmax(0, 1fr); }
   .settings-preview .breathing-visual { width: 80px; }
   .settings-preview .preview-session-button { width: 80px; }
-  .settings-preview .phase-caption { font-size: 11px; }
-  .settings-preview .phase-count { font-size: 26px; margin-block: 0; }
-  .settings-preview .phase-step { min-height: 20px; padding: 0; }
+  .settings-preview .phase-caption { font-size: 12px; }
+  .settings-preview .phase-count { font-size: 28px; margin-block: 0; }
+  .settings-preview .duration-button { min-height: 34px; }
   .settings-preview .phase-timings { padding: 4px; }
 }
 
 /* Cards keep the same controls and styling across devices. */
 @container (max-width: 340px) {
-  .preset-name { font-size: 13px; max-width: calc(100% - 12px); }
+  .preset-name { font-size: 14px; left: 4px; max-width: calc(100% - 8px); padding-inline: 2px; }
   .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr);
@@ -1115,7 +1090,7 @@ fieldset {
     gap: 2px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 12px;
+    font-size: 14px;
     text-align: center;
   }
   .display-toggle > span { white-space: nowrap; }
@@ -1145,7 +1120,7 @@ fieldset {
   .practice-primary > #session-button { grid-row: 2; justify-self: center; }
   .practice-primary > .phase-timings { grid-row: 3; }
   .practice-primary > .preset-options { grid-row: 4; align-self: stretch; }
-  .preset-options > legend { font-size: 18px; }
+  .preset-options > legend { font-size: 20px; }
   .preset-options > .preset-tiles { height: 100%; grid-auto-rows: 1fr; }
   .practice-primary > .settings-note { grid-row: 5; }
   .practice-primary > .section-navigation { display: none; }
@@ -1156,13 +1131,11 @@ fieldset {
     margin-top: 24px;
   }
   .feedback-page > .hold-options { grid-row: 4; align-self: stretch; }
-  .feedback-page > .data-options { grid-row: 5; }
   .feedback-page > .install-footer { grid-column: 1; grid-row: 6; margin-left: 0; }
-  .feedback-page:has(#install-button:not([hidden])) > .data-options { grid-column: 1; }
   .feedback-page > .section-navigation { grid-row: 7; min-height: 0; align-self: end; }
   .feedback-page > .section-navigation:has(> button[hidden]) { display: none; }
   .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .hold-choice { min-height: 132px; aspect-ratio: auto; gap: 8px; padding: 16px 8px; font-size: 15px; }
+  .hold-choice { min-height: 132px; aspect-ratio: auto; gap: 8px; padding: 16px 8px; font-size: 16px; }
   .hold-sample { width: 56px; height: 56px; }
   .settings-preview { display: none; }
 }
@@ -1171,15 +1144,21 @@ fieldset {
 @media (max-height: 800px) and (max-width: 999px),
        (max-height: 800px) and (hover: none),
        (max-height: 800px) and (pointer: coarse) {
+  .practice-card { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .practice-primary > .section-navigation { padding-top: 8px; }
+  .practice-primary > .breathing-visual { margin-bottom: 4px; }
+  .practice-primary > .phase-timings { margin-top: 12px; }
+  .practice-card :is(.phase-timings, .preset-options) { padding: 8px; }
+  .practice-card .preset-tiles { row-gap: 14px; padding-top: 6px; }
   .feedback-page {
     grid-template-rows: auto auto auto auto minmax(44px, 1fr);
     padding-top: 8px;
     padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
   .feedback-page > .install-footer { margin-top: 8px; }
-  .feedback-page > .display-options, .hold-options, .data-options, .section-navigation { margin-top: 8px; }
+  .feedback-page > .display-options, .hold-options, .section-navigation { margin-top: 8px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 6px; }
-  .display-options > legend, .hold-options > legend { font-size: 14px; }
+  .display-options > legend, .hold-options > legend { font-size: 16px; }
   .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr);
@@ -1187,33 +1166,41 @@ fieldset {
     gap: 2px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 12px;
+    font-size: 14px;
     text-align: center;
   }
   .display-toggle > span { white-space: nowrap; }
-  .feedback-page > :is(.data-options, .install-footer) > .button, .section-navigation > .button {
+  .feedback-page > .install-footer > .button, .section-navigation > .button {
     min-height: 44px;
     padding: 10px 8px;
   }
   .section-navigation { gap: 8px; }
   .feedback-page > .section-navigation { min-height: 44px; }
   .settings-preview { grid-template-columns: 96px minmax(0, 1fr); padding: 10px 6px 6px; gap: 4px 8px; }
-  .settings-preview figcaption { font-size: 14px; }
+  .settings-preview figcaption { font-size: 16px; }
   .settings-preview .breathing-visual { width: 96px; }
-  .settings-preview .phase-caption { font-size: 11px; }
-  .settings-preview .phase-count { font-size: 26px; margin-block: 0; }
+  .settings-preview .phase-caption { font-size: 12px; }
+  .settings-preview .phase-count { font-size: 28px; margin-block: 0; }
   .settings-preview .preview-session-button { width: 96px; min-height: 32px; padding: 3px; }
   .settings-preview .phase-timings { padding: 2px 4px; }
-  .settings-preview .phase-timings > legend { font-size: 10px; }
-  .settings-preview .phase-step { min-height: 16px; padding: 0; font-size: 10px; }
+  .settings-preview .phase-timings > legend { font-size: 11px; }
+  .settings-preview .duration-button { min-height: 34px; }
+}
+
+@container (max-width: 340px) {
+  .settings-preview { grid-template-columns: 80px minmax(0, 1fr); }
+  .settings-preview .breathing-visual, .settings-preview .preview-session-button { width: 80px; }
+  .settings-preview .phase-timings { padding-inline: 4px; }
+  .settings-preview .phase-track { --phase-gap: 2px; }
+  .settings-preview .duration-button { font-size: 10px; }
 }
 
 /* Exercise mode */
-.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .settings-link, .section-navigation {
+.install-footer, .preset-options, .display-options, .hold-options, .skip-link, .settings-link, .section-navigation {
   transition: opacity .3s ease, visibility 0s linear;
 }
 .is-zen .install-footer, .is-zen .settings-link, .is-zen .section-navigation, .is-zen .settings-preview,
-.is-zen .preset-options, .is-zen .display-options, .is-zen .hold-options, .is-zen .data-options, .is-zen .skip-link {
+.is-zen .preset-options, .is-zen .display-options, .is-zen .hold-options, .is-zen .skip-link {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1248,9 +1235,10 @@ fieldset {
 
 @media (prefers-reduced-motion: reduce) {
   /* Keep the requested timing editor expansion; quiet other transitions. */
-  *:not(.duration-picker, .duration-step, .reset-confirmation, .reset-confirmation-content), *::before, *::after {
+  *:not(.duration-picker, .duration-step), *::before, *::after {
     transition: none !important;
   }
+  .pattern-edit-hint { animation: none; }
   /* Breathing and hold previews still demonstrate their effects. */
   .breathing-visual[data-state="idle"] .breathing-orb {
     will-change: auto;

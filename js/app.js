@@ -13,7 +13,6 @@ import { SettingsPreview } from './settings-preview.js';
 import { InstallPrompt } from './install-prompt.js';
 import { SectionScroller } from './section-scroller.js';
 import { OutsideDismissal } from './outside-dismissal.js';
-import { ResetConfirmation } from './reset-confirmation.js';
 import { ReturnNavigation } from './return-navigation.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
@@ -30,8 +29,8 @@ export const REQUIRED_IDS = Object.freeze([
   'practice', 'breathing-visual', 'breathing-orb', 'hold-fill', 'phase-caption',
   'phase-count', 'phase-track', 'phase-announcement', 'session-button',
   'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields',
-  'preset-tiles', 'preset-fields', 'settings-note', 'timing-fields', 'settings-preview',
-  'install-button', 'clear-local-data-button', 'reset-confirmation', 'reset-confirm-button', 'reset-cancel-button',
+  'preset-tiles', 'preset-fields', 'pattern-edit-hint', 'settings-note', 'timing-fields', 'settings-preview',
+  'install-button',
   'display-settings', 'display-settings-button', 'back-to-breathing-button', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
   ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-fine-decrease`, `${phase}-fine-increase`, `${phase}-picker`, `${phase}-picked-value`, `track-${phase}`]),
 ]);
@@ -74,7 +73,6 @@ export class BreathingApp {
   #preferences;
   #zenMode = false;
   #sections;
-  #resetConfirmation;
 
   constructor({ document = globalThis.document, window = globalThis.window,
     store = new PresetStore(), engine = new BreathingEngine() } = {}) {
@@ -83,7 +81,7 @@ export class BreathingApp {
     this.#elements = collectElements(document);
     this.#store = store;
     this.#sessionView = new SessionView({ elements: this.#elements });
-    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .section-navigation, .settings-link, .settings-preview'));
+    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .skip-link, .section-navigation, .settings-link, .settings-preview'));
     this.#wakeLock = new WakeLockGuard({ navigator: window.navigator, document });
     this.#cues = new PhaseCues({ window, document });
     this.#session = new SessionDriver({ engine,
@@ -98,9 +96,12 @@ export class BreathingApp {
     this.#durationPicker = new DurationPicker({ document, window, container: this.#elements['timing-fields'],
       onChange: (phase, value) => this.#setField(phase, value),
       canChange: () => this.#status === 'idle',
+      canActivateOutside: (button) => button === this.#elements['display-settings-button']
+        || button === this.#elements['back-to-breathing-button'],
     });
-    this.#presetTiles = new PresetTiles({ document, container: this.#elements['preset-tiles'],
+    this.#presetTiles = new PresetTiles({ document, window, container: this.#elements['preset-tiles'],
       onSelect: (id) => this.#selectPreset(id),
+      onHint: (visible) => { this.#elements['pattern-edit-hint'].hidden = !visible; },
     });
     new InstallPrompt({ window, button: this.#elements['install-button'],
       onUnavailable: () => this.#notify('install b from your browser menu.'),
@@ -119,11 +120,6 @@ export class BreathingApp {
     new ReturnNavigation({ window, breathing: this.#elements['breathing-visual'],
       button: this.#elements['back-to-breathing-button'],
     });
-    this.#resetConfirmation = new ResetConfirmation({ document, window,
-      button: this.#elements['clear-local-data-button'], panel: this.#elements['reset-confirmation'],
-      confirmButton: this.#elements['reset-confirm-button'], cancelButton: this.#elements['reset-cancel-button'],
-      canOpen: () => this.#status === 'idle', onConfirm: () => this.#clearLocalData(),
-    });
     this.#bindEvents();
     this.#syncSettings();
     this.#syncPreferences();
@@ -135,13 +131,14 @@ export class BreathingApp {
   #bindEvents() {
     const ui = this.#elements;
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
+    ui['timing-fields'].addEventListener('click', () => this.#presetTiles.dismissHint());
     for (const [button, page] of [
       ['display-settings-button', 'display-settings'], ['back-to-breathing-button', 'practice'],
     ]) {
       ui[button].addEventListener('click', () => {
         if (this.#status !== 'idle') return;
-        this.#durationPicker.close();
-        this.#resetConfirmation.close();
+        this.#durationPicker.close({ immediately: true });
+        this.#presetTiles.dismissHint();
         this.#sections.goTo(ui[page]);
         ui[page].focus({ preventScroll: true });
       });
@@ -155,7 +152,12 @@ export class BreathingApp {
       this.#navigation.leave();
     }, true);
     for (const [id, preference] of Object.entries(TOGGLE_PREFERENCES)) {
-      ui[id].addEventListener('change', () => this.#setPreference(preference, ui[id].checked));
+      ui[id].addEventListener('change', () => {
+        const enabled = ui[id].checked;
+        const wasEnabled = this.#preferences[preference];
+        this.#setPreference(preference, enabled);
+        if (preference === 'soundCue' && enabled && !wasEnabled) this.#preview.sampleSound();
+      });
     }
     ui['hold-choices'].addEventListener('change', ({ target }) => {
       if (HOLD_FEEDBACK_VARIANTS.includes(target.value)) this.#setPreference('holdFeedback', target.value);
@@ -182,6 +184,7 @@ export class BreathingApp {
 
   /** Leaving pauses a running exercise and retries any pending local changes. */
   #suspend() {
+    this.#presetTiles.dismissHint();
     if (this.#status === 'running') this.#session.pause();
     this.#editor.flush();
     this.#refreshPresets();
@@ -199,6 +202,7 @@ export class BreathingApp {
 
   #setField(field, value) {
     if (this.#status !== 'idle') return;
+    this.#presetTiles.dismissHint();
     this.#editor.setConfig({ ...this.#config, [field]: value });
     if (!this.#refreshPresets({ keepPicker: true })) {
       this.#syncSettings();
@@ -253,29 +257,6 @@ export class BreathingApp {
     this.#storageWarningShown = true;
   }
 
-  #clearLocalData() {
-    if (this.#status !== 'idle') return false;
-    try {
-      this.#store.clearLocalData();
-    } catch (error) {
-      if (!(error instanceof PersistenceError)) throw error;
-      this.#notify('could not clear all local data. try again.');
-      return false;
-    }
-    this.#durationPicker.close();
-    // Discard pending edits too, so a later pagehide cannot restore cleared data.
-    this.#editor = new PresetEditor({ store: this.#store, onStorageError: () => this.#reportStorageFailure() });
-    this.#preferences = this.#store.loadPreferences();
-    this.#presetsChanged = false;
-    this.#storageWarningShown = false;
-    this.#elements['settings-note'].textContent = '';
-    this.#syncSettings();
-    this.#syncPreferences();
-    this.#render(this.#session.snapshot);
-    this.#notify('all local data cleared.');
-    return true;
-  }
-
   /** Restore controls and keep guides hidden until their saved preference is applied. */
   #syncPreferences() {
     for (const [id, preference] of Object.entries(TOGGLE_PREFERENCES)) {
@@ -314,8 +295,8 @@ export class BreathingApp {
   }
 
   #toggleSession() {
-    this.#durationPicker.close();
-    this.#resetConfirmation.close();
+    this.#durationPicker.close({ immediately: true });
+    this.#presetTiles.dismissHint();
     const status = this.#status;
     if (status === 'running') {
       this.#navigation.leave();
@@ -339,7 +320,6 @@ export class BreathingApp {
     this.#sessionView.render(snapshot, { inhale: this.#config.inhale });
     this.#syncTimingVisibility();
     this.#preview.setEnabled(snapshot.status === 'idle');
-    this.#elements['clear-local-data-button'].disabled = snapshot.status !== 'idle';
     if (snapshot.status === 'idle') this.#offlineSupport?.applyPendingUpdate();
   }
 

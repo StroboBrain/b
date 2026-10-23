@@ -2,7 +2,7 @@ import { DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
 import { DEFAULT_PREFERENCES } from './preset-store.js';
 import { formatDuration, phaseLabel } from './phase-labels.js';
 
-/** A still display sample. Its optional sound plays only from the speaker button. */
+/** A still display sample. Its optional sound plays only from an explicit gesture. */
 export class SettingsPreview {
   #document;
   #window;
@@ -39,7 +39,7 @@ export class SettingsPreview {
       throw new Error('The settings preview is missing its breathing controls.');
     }
     this.#soundButton.setAttribute('aria-label', 'preview sound cue');
-    this.#listen(this.#soundButton, 'click', () => this.#sampleSound());
+    this.#listen(this.#soundButton, 'click', () => this.sampleSound());
     this.#listen(document, 'visibilitychange', () => {
       if (document.hidden) this.#stopSound();
       this.#syncSoundButton();
@@ -114,7 +114,8 @@ export class SettingsPreview {
     this.#container.dataset.soundPlaying = String(Boolean(this.#audio?.oscillator));
   }
 
-  #sampleSound() {
+  /** Play one cue when sound is enabled or the preview speaker is pressed. */
+  sampleSound() {
     if (!this.#canSample() || this.#audio) return;
     try {
       const audio = { context: new this.#window.AudioContext(), oscillator: null, gain: null };
