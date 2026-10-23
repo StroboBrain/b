@@ -59,7 +59,9 @@
               <button id="session-button" class="button button-primary" type="button" disabled><span id="session-button-icon" class="icon-play" aria-hidden="true"></span><span id="session-button-label" class="sr-only">start</span></button>
               <fieldset id="timing-fields" class="phase-timings">
                 <legend>timings</legend>
-                <p id="pattern-edit-hint" class="pattern-edit-hint" role="status" hidden>change the timings here<span class="pattern-hint-arrow" aria-hidden="true"></span></p>
+                <div class="pattern-hint-window">
+                  <p id="pattern-edit-hint" class="pattern-edit-hint" role="status" hidden>change the timings here<span class="pattern-hint-arrow" aria-hidden="true"></span></p>
+                </div>
                 <ol id="phase-track" class="phase-track" aria-label="breathing sequence">
                   <li class="phase-step" data-phase="inhale">
                     <button id="inhale-value" class="duration-button" type="button" data-field="inhale" value="4" aria-haspopup="dialog" aria-controls="inhale-picker" aria-expanded="false" aria-label="adjust inhale duration, 4 seconds">
@@ -174,12 +176,12 @@
             <fieldset class="display-options">
               <legend>settings</legend>
               <div class="display-controls">
-                <div class="display-toggle animated-toggle text-toggle"><span class="toggle-label text-toggle-label" aria-hidden="true"><span class="toggle-label-on text-label-on">show text</span><span class="toggle-label-off text-label-off">text hidden</span></span><input id="show-breath-text" class="toggle-mark" type="checkbox" role="switch" aria-label="text" checked></div>
-                <div class="display-toggle"><span id="guides-setting-label">guides</span><input id="show-breath-guides" class="toggle-mark" type="checkbox" role="switch" aria-labelledby="guides-setting-label"></div>
-                <div class="display-toggle animated-toggle time-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">show time</span><span class="toggle-label-off">time hidden</span></span><input id="show-breath-numbers" class="toggle-mark" type="checkbox" role="switch" aria-label="time" checked></div>
-                <div class="display-toggle"><span id="timings-setting-label">timings</span><input id="show-phase-timings" class="toggle-mark" type="checkbox" role="switch" aria-labelledby="timings-setting-label" checked></div>
+                <div class="display-toggle animated-toggle text-toggle"><span class="toggle-label text-toggle-label" aria-hidden="true"><span class="toggle-label-on text-label-on">text</span><span class="toggle-label-off text-label-off">no text</span></span><input id="show-breath-text" class="toggle-mark" type="checkbox" role="switch" aria-label="text" checked></div>
+                <div class="display-toggle animated-toggle guides-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">guides</span><span class="toggle-label-off">no guides</span></span><input id="show-breath-guides" class="toggle-mark" type="checkbox" role="switch" aria-label="guides"></div>
+                <div class="display-toggle animated-toggle time-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">time</span><span class="toggle-label-off">no time</span></span><input id="show-breath-numbers" class="toggle-mark" type="checkbox" role="switch" aria-label="time" checked></div>
+                <div class="display-toggle animated-toggle timings-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">timings</span><span class="toggle-label-off">no timings</span></span><input id="show-phase-timings" class="toggle-mark" type="checkbox" role="switch" aria-label="timings" checked></div>
                 <div class="display-toggle animated-toggle button-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">fade button</span><span class="toggle-label-off">show button</span></span><input id="fade-buttons" class="toggle-mark" type="checkbox" role="switch" aria-label="button visibility"></div>
-                <div class="display-toggle animated-toggle sound-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">sound cue</span><span class="toggle-label-off">no sound cue</span></span><input id="sound-cue" class="toggle-mark" type="checkbox" role="switch" aria-label="sound cue"></div>
+                <div class="display-toggle animated-toggle sound-toggle"><span class="toggle-label" aria-hidden="true"><span class="toggle-label-on">sound cue</span><span class="toggle-label-off">no sound</span></span><input id="sound-cue" class="toggle-mark" type="checkbox" role="switch" aria-label="sound cue"></div>
               </div>
             </fieldset>
             <fieldset id="hold-feedback-fields" class="hold-options">

@@ -36,10 +36,10 @@
   --shadow-deep: #000b;
   --border-notice: #888;
   --scrollbar-space: 0px;
-  --text-caption: 13px;
-  --text-label: 15px;
-  --text-body: 16px;
-  --text-input: 17px;
+  --text-caption: 14px;
+  --text-label: 16px;
+  --text-body: 17px;
+  --text-input: 18px;
 }
 
 /* Base elements and accessibility */
@@ -135,10 +135,10 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 /* Page layout */
 .app-shell {
-  max-width: calc(520px + var(--scrollbar-space));
+  max-width: calc(552px + var(--scrollbar-space));
   margin: auto;
-  padding: 8px 12px 0;
-  padding-left: calc(12px + var(--scrollbar-space));
+  padding: 8px 6px 0;
+  padding-left: calc(6px + var(--scrollbar-space));
 }
 .app-page {
   min-width: 0;
@@ -332,27 +332,30 @@ button:disabled, .preset-tile:has(:disabled) {
   }
 }
 .orb-copy {
+  --count-size: 68px;
   position: absolute;
   inset: 0;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   pointer-events: none;
 }
+.orb-copy > * { grid-area: 1 / 1; }
 .phase-caption {
   font-size: var(--text-body);
   color: var(--paper);
+  transform: translateY(calc(-.5 * var(--count-size) - 50% - 2px));
 }
 .phase-count {
-  font-size: 64px;
-  line-height: 1.2;
+  font-size: var(--count-size);
+  line-height: 1;
   font-weight: 300;
   letter-spacing: -2px;
   font-variant-numeric: tabular-nums;
-  margin: 5px 0;
+  margin: 0;
 }
+.app-shell:has(#show-breath-numbers:not(:checked)) .phase-caption,
+.settings-preview[data-show-time="false"] .phase-caption { transform: none; }
 .breathing-visual:not([data-state="idle"])[data-phase="inhale"] .breathing-orb {
   animation-name: breathe-in;
 }
@@ -504,14 +507,15 @@ button:disabled, .preset-tile:has(:disabled) {
   min-width: 0;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
+  min-height: 60px;
   padding: 10px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 17px;
   text-align: left;
+  transition: background-color .32s ease, border-color .32s ease;
 }
 .display-toggle:has(> input:checked) {
   background: var(--surface-selected);
@@ -524,17 +528,18 @@ button:disabled, .preset-tile:has(:disabled) {
 .animated-toggle > .toggle-label {
   display: grid;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
 }
 .toggle-label > span {
   grid-area: 1 / 1;
-  transition: transform .32s ease, opacity .24s ease;
+  align-self: center;
+  padding-block: 1px;
+  transition: transform .32s cubic-bezier(.22, 1, .36, 1), opacity .24s ease;
 }
 .toggle-label-on { opacity: 1; transform: translateX(0); }
 .toggle-label-off { opacity: 0; transform: translateX(-12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-on { opacity: 0; transform: translateX(12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-off { opacity: 1; transform: translateX(0); }
-.sound-toggle > .toggle-label, .time-toggle > .toggle-label, .button-toggle > .toggle-label { white-space: normal; }
 .hold-toggle {
   color: var(--text-control);
   gap: 8px;
@@ -555,7 +560,7 @@ button:disabled, .preset-tile:has(:disabled) {
   border-radius: 999px;
   background: var(--surface-pressed);
   cursor: pointer;
-  transition: background-color .18s, border-color .18s;
+  transition: background-color .32s ease, border-color .32s ease;
 }
 .toggle-mark::after {
   content: "";
@@ -564,7 +569,7 @@ button:disabled, .preset-tile:has(:disabled) {
   height: 16px;
   border-radius: 50%;
   background: var(--text-control);
-  transition: transform .18s, background-color .18s;
+  transition: transform .32s cubic-bezier(.22, 1, .36, 1), background-color .32s ease;
 }
 .toggle-mark:checked {
   background: var(--paper);
@@ -589,6 +594,7 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 .practice-primary > .section-navigation {
   margin-top: auto;
+  margin-bottom: 12px;
   padding-top: 16px;
 }
 .section-navigation:has(> button[hidden]) { display: none; }
@@ -623,11 +629,20 @@ fieldset {
   background: var(--surface);
   box-shadow: 0 0 0 200vmax rgb(72 72 72 / .35);
 }
-.pattern-edit-hint {
+.pattern-hint-window {
   position: absolute;
   bottom: calc(100% + 12px);
-  right: 8px;
+  inset-inline: 0;
+  height: 64px;
   z-index: 2;
+  overflow: clip;
+  pointer-events: none;
+}
+.pattern-hint-window:has(> [hidden]) { display: none; }
+.pattern-edit-hint {
+  position: absolute;
+  bottom: 0;
+  right: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -640,11 +655,14 @@ fieldset {
   color: var(--text-control);
   font-size: var(--text-caption);
   pointer-events: none;
-  animation: hint-enter .4s ease-out both;
+  animation: hint-enter .7s cubic-bezier(.22, 1, .36, 1) both;
 }
 @keyframes hint-enter {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(100vw); }
+  55% { opacity: 1; transform: translate(0, 0); }
+  70% { transform: translate(0, -6px); }
+  85% { transform: translate(0, 1px); }
+  to { opacity: 1; transform: translate(0, 0); }
 }
 .pattern-hint-arrow {
   position: relative;
@@ -672,7 +690,7 @@ fieldset {
   color: var(--text-control);
 }
 .display-options > legend, .hold-options > legend {
-  font-size: 20px;
+  font-size: 21px;
 }
 .hold-choices {
   display: grid;
@@ -693,7 +711,7 @@ fieldset {
   border-radius: 3px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
 }
 .hold-choice:has(> input:checked) {
   border-color: var(--border-selected);
@@ -773,7 +791,7 @@ fieldset {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.2;
   font-weight: 500;
   overflow-wrap: anywhere;
@@ -813,6 +831,7 @@ fieldset {
   background: transparent;
   color: inherit;
   font-size: var(--text-body);
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
   transition: background-color .18s, border-color .18s;
 }
@@ -901,7 +920,7 @@ fieldset {
   border-radius: 2px;
   background: var(--ink);
   color: var(--paper);
-  font-size: 20px;
+  font-size: 21px;
   line-height: 1;
   touch-action: none;
   transition: opacity var(--picker-step-fade-duration) ease var(--picker-step-exit-delay),
@@ -953,7 +972,7 @@ fieldset {
   border-radius: 7px;
   background: var(--paper);
   color: var(--ink);
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 500;
   line-height: 1.5;
   padding: 20px 24px;
@@ -985,11 +1004,11 @@ fieldset {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   align-items: center;
-  justify-items: start;
-  gap: 6px 12px;
+  justify-items: center;
+  gap: 4px;
   margin: 0;
   padding: 14px 8px 8px;
   border: 1px solid var(--line);
@@ -1005,13 +1024,13 @@ fieldset {
   transform: translateY(-50%);
   background: var(--surface);
   color: var(--text-control);
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 500;
 }
 .settings-preview .breathing-visual {
   grid-column: 1;
   grid-row: 1;
-  width: 120px;
+  width: clamp(116px, calc(100dvh - 686px), 136px);
   margin: 0;
 }
 .settings-preview .breathing-orb {
@@ -1019,30 +1038,29 @@ fieldset {
   background-color: color-mix(in srgb, var(--breath-dark), var(--breath-light) calc(var(--preview-progress) * 100%));
   will-change: auto;
 }
-.settings-preview .phase-count { font-size: 32px; }
+.settings-preview .orb-copy { --count-size: 42px; }
 .preview-session-button {
   grid-column: 1;
   grid-row: 2;
-  width: 120px;
-  min-height: 44px;
-  padding: 8px;
+  width: 96px;
+  min-height: 32px;
+  padding: 4px;
 }
 .preview-sound-button {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 48px;
-  min-height: 48px;
+  width: 56px;
+  min-height: 56px;
   padding: 9px;
 }
-.speaker-icon { width: 28px; height: 28px; }
+.speaker-icon { width: 36px; height: 36px; }
 .settings-preview:not([data-sound-cue="true"]) .speaker-waves,
 .settings-preview[data-sound-cue="true"] .speaker-muted { display: none; }
 .settings-preview[data-sound-playing="true"] .preview-sound-button { border-color: var(--paper); }
 .settings-preview .phase-timings {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  align-self: end;
+  grid-column: 1;
+  grid-row: 3;
   width: 100%;
   margin: 0;
   padding: 6px;
@@ -1051,10 +1069,10 @@ fieldset {
 .settings-preview .phase-step { min-height: 0; }
 .settings-preview .duration-button {
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   gap: 2px;
-  padding: 4px 1px;
-  font-size: 11px;
+  padding: 3px 1px;
+  font-size: 14px;
   pointer-events: none;
 }
 .settings-preview[data-show-text="false"] .phase-caption,
@@ -1069,20 +1087,9 @@ fieldset {
 }
 .settings-preview .hold-feedback { visibility: visible; }
 .settings-preview .hold-fill { --hold-progress: var(--preview-progress); }
-@media (max-height: 500px) {
-  .settings-preview { padding: 10px 6px 6px; gap: 4px 8px; }
-  .settings-preview { grid-template-columns: 80px minmax(0, 1fr); }
-  .settings-preview .breathing-visual { width: 80px; }
-  .settings-preview .preview-session-button { width: 80px; }
-  .settings-preview .phase-caption { font-size: 12px; }
-  .settings-preview .phase-count { font-size: 28px; margin-block: 0; }
-  .settings-preview .duration-button { min-height: 34px; }
-  .settings-preview .phase-timings { padding: 4px; }
-}
-
 /* Cards keep the same controls and styling across devices. */
 @container (max-width: 340px) {
-  .preset-name { font-size: 14px; left: 4px; max-width: calc(100% - 8px); padding-inline: 2px; }
+  .preset-name { font-size: 15px; left: 4px; max-width: calc(100% - 8px); padding-inline: 2px; }
   .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr);
@@ -1090,13 +1097,13 @@ fieldset {
     gap: 2px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 14px;
+    font-size: 15px;
     text-align: center;
   }
   .display-toggle > span { white-space: nowrap; }
 }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
-  .app-shell { max-width: calc(1064px + var(--scrollbar-space)); }
+  .app-shell { max-width: calc(1120px + var(--scrollbar-space)); }
   .practice-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(7, auto);
@@ -1120,7 +1127,7 @@ fieldset {
   .practice-primary > #session-button { grid-row: 2; justify-self: center; }
   .practice-primary > .phase-timings { grid-row: 3; }
   .practice-primary > .preset-options { grid-row: 4; align-self: stretch; }
-  .preset-options > legend { font-size: 20px; }
+  .preset-options > legend { font-size: 21px; }
   .preset-options > .preset-tiles { height: 100%; grid-auto-rows: 1fr; }
   .practice-primary > .settings-note { grid-row: 5; }
   .practice-primary > .section-navigation { display: none; }
@@ -1135,7 +1142,7 @@ fieldset {
   .feedback-page > .section-navigation { grid-row: 7; min-height: 0; align-self: end; }
   .feedback-page > .section-navigation:has(> button[hidden]) { display: none; }
   .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .hold-choice { min-height: 132px; aspect-ratio: auto; gap: 8px; padding: 16px 8px; font-size: 16px; }
+  .hold-choice { min-height: 132px; aspect-ratio: auto; gap: 8px; padding: 16px 8px; font-size: 17px; }
   .hold-sample { width: 56px; height: 56px; }
   .settings-preview { display: none; }
 }
@@ -1148,7 +1155,7 @@ fieldset {
   .practice-primary > .section-navigation { padding-top: 8px; }
   .practice-primary > .breathing-visual { margin-bottom: 4px; }
   .practice-primary > .phase-timings { margin-top: 12px; }
-  .practice-card :is(.phase-timings, .preset-options) { padding: 8px; }
+  .practice-card :is(.phase-timings, .preset-options) { padding: 6px; }
   .practice-card .preset-tiles { row-gap: 14px; padding-top: 6px; }
   .feedback-page {
     grid-template-rows: auto auto auto auto minmax(44px, 1fr);
@@ -1158,7 +1165,7 @@ fieldset {
   .feedback-page > .install-footer { margin-top: 8px; }
   .feedback-page > .display-options, .hold-options, .section-navigation { margin-top: 8px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 6px; }
-  .display-options > legend, .hold-options > legend { font-size: 16px; }
+  .display-options > legend, .hold-options > legend { font-size: 17px; }
   .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr);
@@ -1166,7 +1173,7 @@ fieldset {
     gap: 2px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 14px;
+    font-size: 15px;
     text-align: center;
   }
   .display-toggle > span { white-space: nowrap; }
@@ -1176,23 +1183,97 @@ fieldset {
   }
   .section-navigation { gap: 8px; }
   .feedback-page > .section-navigation { min-height: 44px; }
-  .settings-preview { grid-template-columns: 96px minmax(0, 1fr); padding: 10px 6px 6px; gap: 4px 8px; }
-  .settings-preview figcaption { font-size: 16px; }
-  .settings-preview .breathing-visual { width: 96px; }
-  .settings-preview .phase-caption { font-size: 12px; }
-  .settings-preview .phase-count { font-size: 28px; margin-block: 0; }
-  .settings-preview .preview-session-button { width: 96px; min-height: 32px; padding: 3px; }
+  .settings-preview { padding: 10px 6px 6px; gap: 4px; }
+  .settings-preview figcaption { font-size: 17px; }
+  .settings-preview .breathing-visual { width: 104px; }
+  .settings-preview .phase-caption { font-size: 13px; }
+  .settings-preview .orb-copy { --count-size: 34px; }
+  .settings-preview .preview-session-button { width: 64px; min-height: 24px; padding: 2px; }
   .settings-preview .phase-timings { padding: 2px 4px; }
-  .settings-preview .phase-timings > legend { font-size: 11px; }
-  .settings-preview .duration-button { min-height: 34px; }
+  .settings-preview .phase-timings > legend { font-size: 14px; line-height: 1.15; }
+  .settings-preview .duration-button { min-height: 38px; font-size: 13px; padding: 2px 1px; }
+}
+@container (max-width: 340px) {
+  .preset-options { padding-inline: 6px; }
 }
 
-@container (max-width: 340px) {
-  .settings-preview { grid-template-columns: 80px minmax(0, 1fr); }
-  .settings-preview .breathing-visual, .settings-preview .preview-session-button { width: 80px; }
-  .settings-preview .phase-timings { padding-inline: 4px; }
-  .settings-preview .phase-track { --phase-gap: 2px; }
-  .settings-preview .duration-button { font-size: 10px; }
+/* Two complete portrait pages, with space borrowed from decoration first. */
+@media (orientation: portrait) and (max-width: 999px),
+       (orientation: portrait) and (hover: none),
+       (orientation: portrait) and (pointer: coarse) {
+  .practice-layout { gap: 8px; }
+  .feedback-page {
+    grid-template-rows: auto minmax(min-content, 1fr) auto auto auto;
+    padding-top: 40px;
+  }
+  .feedback-page > .display-options { display: flex; flex-direction: column; }
+  .feedback-page .display-controls { flex: 1; }
+  .feedback-page > .section-navigation { margin-top: 12px; }
+  .practice-primary { --visual-size: min(288px, 100%, max(64px, calc(100dvh - 552px))); }
+  .practice-primary > .breathing-visual .orb-copy { --count-size: clamp(38px, 8dvh, 68px); }
+  .hold-choice { width: 100%; max-height: clamp(44px, calc(100dvh - 480px), 92px); }
+  .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .display-toggle {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    min-height: 48px;
+    gap: 2px;
+    padding: 3px 2px;
+    font-size: 16px;
+    line-height: 1.25;
+    text-align: center;
+  }
+}
+@media (orientation: portrait) and (max-height: 600px) {
+  .practice-card { padding-top: 2px; }
+  .practice-primary { --visual-size: min(160px, 100%, max(64px, calc(100dvh - 440px))); }
+  .practice-primary > .breathing-visual { margin-bottom: 2px; }
+  .practice-primary > #session-button { min-height: 44px; padding-block: 6px; }
+  .practice-primary > .phase-timings { margin-top: 6px; }
+  .practice-card :is(.phase-timings, .preset-options) { padding: 4px; }
+  .practice-card .duration-button { min-height: 56px; gap: 2px; padding-block: 2px; }
+  .practice-card .preset-options { margin-top: 6px; }
+  .practice-card .preset-tiles { padding-top: 4px; gap: 8px; }
+  .practice-card .preset-tile { min-height: 44px; padding: 6px 8px; }
+  .practice-primary > .section-navigation { padding-top: 6px; }
+  .feedback-page > .display-options, .feedback-page > .hold-options, .feedback-page > .install-footer { margin-top: 6px; }
+  .feedback-page > :is(.display-options, .hold-options) { padding: 4px; }
+  .display-controls { gap: 4px; }
+  .display-toggle { min-height: 44px; padding: 2px; font-size: 15px; line-height: 1.2; }
+}
+@media (orientation: portrait) and (max-height: 500px) {
+  .practice-primary { --visual-size: 64px; }
+  .display-toggle { padding-block: 1px; gap: 1px; }
+}
+@media (orientation: portrait) and (max-height: 600px) {
+  .feedback-page { padding-top: 14px; }
+  .settings-preview { padding: 2px 4px 0; gap: 0; }
+  .settings-preview .breathing-visual { width: clamp(64px, calc(100dvh - 488px), 88px); }
+  .settings-preview .phase-caption { line-height: 1; }
+  .settings-preview .orb-copy { --count-size: clamp(24px, calc(100dvh - 500px), 32px); }
+  .settings-preview .preview-session-button { width: 64px; min-height: 20px; padding: 0; }
+  .settings-preview .phase-timings { padding: 2px; }
+  .settings-preview .duration-button { min-height: 34px; line-height: 1.2; gap: 1px; padding-block: 1px; }
+  .feedback-page > .display-options, .feedback-page > .hold-options, .feedback-page > .install-footer { margin-top: 4px; }
+  .feedback-page > .section-navigation { margin-top: 4px; }
+  .feedback-page > :is(.display-options, .hold-options) { padding: 2px; }
+  .hold-choices { gap: 4px; }
+  .hold-choice { min-height: 44px; padding: 2px; gap: 2px; line-height: 1.2; }
+  .hold-sample { width: clamp(18px, calc(100dvh - 510px), 36px); }
+}
+@media (orientation: portrait) and (min-height: 601px) and (max-height: 800px) {
+  .feedback-page { padding-top: 24px; }
+}
+@media (orientation: portrait) and (min-height: 601px) and (max-height: 640px) {
+  .settings-preview { padding-block: 6px 4px; gap: 2px; }
+  .settings-preview .breathing-visual { width: clamp(72px, calc(100dvh - 536px), 104px); }
+  .settings-preview .preview-session-button { min-height: 20px; padding: 0; }
+  .settings-preview .duration-button { min-height: 36px; gap: 1px; padding-block: 1px; }
+  .display-toggle { padding-block: 2px; gap: 1px; }
+  .hold-choice { max-height: 88px; }
+}
+@media (orientation: portrait) and (min-height: 700px) {
+  .feedback-page .display-controls { grid-auto-rows: 1fr; }
 }
 
 /* Exercise mode */
