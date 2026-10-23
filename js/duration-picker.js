@@ -6,6 +6,7 @@ import { visibleViewport } from './viewport-layout.js';
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
 const STEP_REVEAL_DELAY_MS = 160;
+const STEP_REVEAL_PAUSE_MS = 240;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls; every accepted
@@ -295,15 +296,25 @@ export class DurationPicker {
         sequence.timer = null;
         sequence.stage = 0;
       } else if (sequence.stage === 0) {
-        // The actual height transition finishes first; the nearby fine steps
-        // then fade in before the outer whole-second steps become available.
+        // Let the fully expanded box rest before the fine pair fades in, then
+        // reveal the outer whole-second pair after that fade has completed.
+        const style = this.#window.getComputedStyle?.(picker);
+        sequence.fadeDuration = this.#cssTime(style, '--picker-step-fade-duration', STEP_REVEAL_DELAY_MS);
+        const pause = this.#cssTime(style, '--picker-reveal-pause', STEP_REVEAL_PAUSE_MS);
         sequence.stage = 1;
         sequence.timer = this.#window.setTimeout(() => {
           if (this.#revealSequence !== sequence) return;
           sequence.timer = null;
           sequence.stage = 2;
           this.#revealButtons(controls);
-        }, this.#stepRevealDelay(picker));
+        }, pause);
+      } else if (sequence.stage === 2 && sequence.timer === null) {
+        sequence.timer = this.#window.setTimeout(() => {
+          if (this.#revealSequence !== sequence) return;
+          sequence.timer = null;
+          sequence.stage = 3;
+          this.#revealButtons(controls);
+        }, sequence.fadeDuration);
       }
     }
     const stage = fullyExpanded && sequence?.controls === controls ? sequence.stage : 0;
@@ -312,7 +323,7 @@ export class DurationPicker {
     const visibility = [controls.increase, controls['fine-increase'], controls['fine-decrease'], controls.decrease].map((button) => {
       const box = button.getBoundingClientRect();
       const fine = button === controls['fine-increase'] || button === controls['fine-decrease'];
-      const revealed = stage >= (fine ? 1 : 2) && box.top >= top - .1 && box.bottom <= bottom + .1;
+      const revealed = stage >= (fine ? 2 : 3) && box.top >= top - .1 && box.bottom <= bottom + .1;
       return { button, revealed };
     });
     for (const { button, revealed } of visibility) {
@@ -328,11 +339,11 @@ export class DurationPicker {
     this.#revealSequence = null;
   }
 
-  #stepRevealDelay(picker) {
-    const value = this.#window.getComputedStyle?.(picker)?.getPropertyValue('--picker-step-fade-duration').trim() ?? '';
+  #cssTime(style, property, fallback) {
+    const value = style?.getPropertyValue(property).trim() ?? '';
     const match = /^(\d+(?:\.\d+)?|\.\d+)(ms|s)$/i.exec(value);
-    if (!match) return STEP_REVEAL_DELAY_MS;
+    if (!match) return fallback;
     const milliseconds = Number(match[1]) * (match[2].toLowerCase() === 's' ? 1000 : 1);
-    return Number.isFinite(milliseconds) ? milliseconds : STEP_REVEAL_DELAY_MS;
+    return Number.isFinite(milliseconds) ? milliseconds : fallback;
   }
 }

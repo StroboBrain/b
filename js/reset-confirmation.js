@@ -12,6 +12,7 @@ export class ResetConfirmation {
   #panel;
   #content;
   #cancelButton;
+  #closedLabel;
   #onConfirm;
   #canOpen;
   #outside;
@@ -37,6 +38,11 @@ export class ResetConfirmation {
     }
     const content = panel.querySelector?.('#reset-confirmation-content');
     if (!content) throw new Error('ResetConfirmation is missing its content.');
+    const anchorCancel = panel.querySelector?.('#reset-anchor-cancel');
+    if (typeof anchorCancel?.addEventListener !== 'function'
+      || typeof anchorCancel?.removeEventListener !== 'function') {
+      throw new Error('ResetConfirmation is missing its anchor cancel button.');
+    }
     this.#document = document;
     this.#window = window;
     this.#button = button;
@@ -44,6 +50,7 @@ export class ResetConfirmation {
     this.#panel = panel;
     this.#content = content;
     this.#cancelButton = cancelButton;
+    this.#closedLabel = button.textContent?.trim() || 'reset all data';
     this.#onConfirm = onConfirm;
     this.#canOpen = canOpen;
     this.#outside = new OutsideDismissal({ document,
@@ -52,6 +59,7 @@ export class ResetConfirmation {
     });
     this.#listen(button, 'click', () => this.#open());
     this.#listen(cancelButton, 'click', () => this.close());
+    this.#listen(anchorCancel, 'click', () => this.close());
     // Activation is owned by the uninterrupted hold. A click (including the
     // synthetic click following a completed touch or key press) never resets.
     this.#listen(confirmButton, 'click', event => event.preventDefault?.());
@@ -109,7 +117,7 @@ export class ResetConfirmation {
       }
     });
     this.#listen(panel, 'toggle', () => {
-      button.setAttribute('aria-expanded', String(panel.matches(':popover-open')));
+      this.#syncTrigger();
       if (!panel.matches(':popover-open')) this.#cancelHold();
     });
     this.#listen(document, 'keydown', event => {
@@ -130,14 +138,14 @@ export class ResetConfirmation {
       this.#listen(window.visualViewport, 'resize', position);
       this.#listen(window.visualViewport, 'scroll', position);
     }
-    button.setAttribute('aria-expanded', 'false');
+    this.#syncTrigger();
   }
 
   close({ restoreFocus = true } = {}) {
     this.#cancelHold();
     if (!this.#panel.matches(':popover-open')) return;
     this.#panel.hidePopover();
-    this.#button.setAttribute('aria-expanded', 'false');
+    this.#syncTrigger();
     if (restoreFocus && !this.#button.matches(':disabled') && this.#canOpen()) {
       this.#button.focus({ preventScroll: true });
     }
@@ -159,6 +167,12 @@ export class ResetConfirmation {
   #consume(event) {
     event.preventDefault?.();
     event.stopImmediatePropagation?.();
+  }
+
+  #syncTrigger() {
+    const open = Boolean(this.#panel.matches(':popover-open'));
+    this.#button.setAttribute('aria-expanded', String(open));
+    this.#button.textContent = open ? 'cancel' : this.#closedLabel;
   }
 
   #available() {
@@ -236,7 +250,7 @@ export class ResetConfirmation {
     this.#panel.style.setProperty('--reset-closed-height', `${anchor.height}px`);
     this.#panel.style.setProperty('--reset-closed-top', `${anchor.top}px`);
     this.#panel.showPopover();
-    this.#button.setAttribute('aria-expanded', 'true');
+    this.#syncTrigger();
     this.#position();
     this.#cancelButton.focus({ preventScroll: true });
   }
@@ -253,8 +267,8 @@ export class ResetConfirmation {
       Math.min(anchor.left, viewport.left + viewport.width - width - 8))}px`;
     this.#panel.style.setProperty('--reset-closed-height', `${anchor.height}px`);
     this.#panel.style.setProperty('--reset-closed-top', `${anchor.top}px`);
-    // Reserve the original trigger's entire hit area below the actions. A repeated
-    // tap at that position lands on the empty panel strip, even while it expands.
+    // The original trigger's entire hit area becomes Cancel. Confirmation stays
+    // above it so repeated taps cannot start a destructive hold.
     const contentHeight = Math.max(this.#content.scrollHeight ?? 0, this.#content.offsetHeight);
     // The content's percentage limit uses the panel's padding box, so include
     // its two 1px borders as well as the gap and top inset in the outer height.

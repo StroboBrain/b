@@ -23,12 +23,12 @@ const freezePreset = (preset) => Object.freeze({
 
 /** The six permanent exercises, with stable IDs and names. */
 const BASE_PRESETS = Object.freeze([
-  freezePreset({ id: 'box', name: 'Box breathing', config: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 } }),
-  freezePreset({ id: 'slow', name: 'Slow breathing', config: { inhale: 4, holdIn: 0, exhale: 6, holdOut: 0 } }),
+  freezePreset({ id: 'box', name: 'box breathing', config: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 } }),
+  freezePreset({ id: 'slow', name: 'slow breathing', config: { inhale: 4, holdIn: 0, exhale: 6, holdOut: 0 } }),
   freezePreset({ id: '478', name: '4–7–8 breathing', config: { inhale: 4, holdIn: 7, exhale: 8, holdOut: 0 } }),
-  freezePreset({ id: 'equal', name: 'Equal breathing', config: { inhale: 5, holdIn: 0, exhale: 5, holdOut: 0 } }),
-  freezePreset({ id: 'custom-1', name: 'Custom 1', config: { inhale: 4, holdIn: 0, exhale: 4, holdOut: 0 } }),
-  freezePreset({ id: 'custom-2', name: 'Custom 2', config: { inhale: 4, holdIn: 2, exhale: 6, holdOut: 2 } }),
+  freezePreset({ id: 'equal', name: 'equal breathing', config: { inhale: 5, holdIn: 0, exhale: 5, holdOut: 0 } }),
+  freezePreset({ id: 'custom-1', name: 'custom 1', config: { inhale: 4, holdIn: 0, exhale: 4, holdOut: 0 } }),
+  freezePreset({ id: 'custom-2', name: 'custom 2', config: { inhale: 4, holdIn: 2, exhale: 6, holdOut: 2 } }),
 ]);
 
 const findBase = (id) => BASE_PRESETS.find((preset) => preset.id === id);
