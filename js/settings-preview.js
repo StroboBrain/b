@@ -1,104 +1,100 @@
-import { BreathingEngine, DEFAULT_CONFIG, PHASES, configsEqual, validateConfig } from './breathing-engine.js';
+import { DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
 import { DEFAULT_PREFERENCES } from './preset-store.js';
-import { SessionDriver } from './session-driver.js';
 import { formatDuration, phaseLabel } from './phase-labels.js';
 
-/** A silent live sample; it runs only while the separate settings page is visible. */
+/** A still display sample. Its optional sound plays only from the speaker button. */
 export class SettingsPreview {
   #document;
   #window;
   #container;
   #visual;
-  #orb;
-  #fill;
   #track;
   #caption;
   #count;
-  #driver;
-  #wide;
-  #observer;
-  #config = { ...DEFAULT_CONFIG };
+  #soundButton;
   #preferences = { ...DEFAULT_PREFERENCES };
-  #visible = false;
   #enabled = true;
-  #active = false;
-  #visualKey = '';
+  #pageHidden = false;
+  #disposed = false;
+  #audio = null;
   #listeners = [];
 
   constructor({ document, window, container } = {}) {
-    if (!container?.querySelector || !document?.addEventListener || !window?.matchMedia
-      || typeof window.IntersectionObserver !== 'function') {
+    if (!container?.querySelector || !document?.addEventListener
+      || typeof document.hidden !== 'boolean' || !window?.addEventListener) {
       throw new TypeError('SettingsPreview requires a document, window and preview container.');
+    }
+    if (window.AudioContext != null && typeof window.AudioContext !== 'function') {
+      throw new TypeError('AudioContext must be a constructor when supported.');
     }
     this.#document = document;
     this.#window = window;
     this.#container = container;
     this.#visual = container.querySelector('.breathing-visual');
-    this.#orb = container.querySelector('.breathing-orb');
-    this.#fill = container.querySelector('.hold-fill');
     this.#track = container.querySelector('.phase-track');
     this.#caption = container.querySelector('.phase-caption');
     this.#count = container.querySelector('.phase-count');
-    if ([this.#visual, this.#orb, this.#fill, this.#track, this.#caption, this.#count].some(node => !node)) {
+    this.#soundButton = container.querySelector('#preview-sound-button');
+    if ([this.#visual, this.#track, this.#caption, this.#count, this.#soundButton].some(node => !node)) {
       throw new Error('The settings preview is missing its breathing controls.');
     }
-    this.#driver = new SessionDriver({
-      engine: new BreathingEngine({ now: () => window.performance.now() }),
-      setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: snapshot => this.#render(snapshot),
+    this.#soundButton.setAttribute('aria-label', 'preview sound cue');
+    this.#listen(this.#soundButton, 'click', () => this.#sampleSound());
+    this.#listen(document, 'visibilitychange', () => {
+      if (document.hidden) this.#stopSound();
+      this.#syncSoundButton();
     });
-    this.#wide = window.matchMedia('(min-width: 1000px) and (hover: hover) and (pointer: fine)');
-    this.#listen(this.#wide, 'change', () => this.#sync());
-    this.#listen(document, 'visibilitychange', () => this.#sync());
-    this.#listen(window, 'pagehide', () => this.#stop());
-    this.#listen(window, 'pageshow', () => this.#sync());
-    this.#observer = new window.IntersectionObserver(entries => {
-      this.#visible = entries.some(entry => entry.target === container && entry.isIntersecting);
-      this.#sync();
-    }, { threshold: 0.01 });
-    this.#observer.observe(container);
-    this.configure(this.#config, this.#preferences);
+    this.#listen(window, 'pagehide', () => {
+      this.#pageHidden = true;
+      this.#stopSound();
+    });
+    this.#listen(window, 'pageshow', () => {
+      this.#pageHidden = false;
+      this.#syncSoundButton();
+    });
+    this.configure(DEFAULT_CONFIG, this.#preferences);
   }
 
   configure(config, preferences) {
     const next = validateConfig(config);
-    if (!preferences || typeof preferences !== 'object') throw new TypeError('Provide display preferences.');
-    const timingChanged = !configsEqual(next, this.#config);
-    const preferencesChanged = JSON.stringify(preferences) !== JSON.stringify(this.#preferences);
-    this.#config = next;
+    if (!preferences || typeof preferences !== 'object' || typeof preferences.soundCue !== 'boolean') {
+      throw new TypeError('Provide display preferences with a soundCue boolean.');
+    }
+    if (this.#disposed) return;
     this.#preferences = { ...preferences };
     const data = this.#container.dataset;
     data.showText = String(preferences.showBreathText);
     data.showTime = String(preferences.showBreathNumbers);
     data.showTimings = String(preferences.showPhaseTimings);
     data.fadeButtons = String(preferences.fadeButtons);
+    data.soundCue = String(preferences.soundCue);
+    this.#visual.dataset.state = 'idle';
+    this.#visual.dataset.phase = 'inhale';
     this.#visual.dataset.holdFeedback = preferences.holdFeedback;
+    this.#caption.textContent = phaseLabel('inhale');
+    this.#count.textContent = String(next.inhale);
     for (const guide of this.#container.querySelectorAll('.breath-guide')) guide.hidden = !preferences.showBreathGuides;
     for (const step of this.#track.children) {
       step.querySelector('.phase-time').textContent = formatDuration(next[step.dataset.phase]);
       step.classList.toggle('is-skipped', next[step.dataset.phase] === 0);
+      step.removeAttribute('aria-current');
     }
-    if (timingChanged && this.#active) {
-      this.#visualKey = '';
-      this.#driver.start(next);
-      this.#restartFade();
-    } else {
-      this.#render(this.#driver.snapshot);
-      if (preferencesChanged && this.#active) this.#restartFade();
-    }
+    if (!preferences.soundCue) this.#stopSound();
+    this.#syncSoundButton();
   }
 
   setEnabled(enabled) {
     if (typeof enabled !== 'boolean') throw new TypeError('Preview availability must be a boolean.');
-    if (this.#enabled === enabled) return;
+    if (this.#disposed) return;
     this.#enabled = enabled;
-    this.#sync();
+    if (!enabled) this.#stopSound();
+    this.#syncSoundButton();
   }
 
   dispose() {
-    this.#enabled = false;
-    this.#stop();
-    this.#observer.disconnect();
+    if (this.#disposed) return;
+    this.#disposed = true;
+    this.#stopSound();
     for (const remove of this.#listeners) remove();
     this.#listeners = [];
   }
@@ -108,50 +104,66 @@ export class SettingsPreview {
     this.#listeners.push(() => target.removeEventListener(type, callback));
   }
 
-  #sync() {
-    const run = this.#enabled && this.#visible && !this.#wide.matches && !this.#document.hidden;
-    if (run === this.#active) return;
-    if (!run) { this.#stop(); return; }
-    this.#active = true;
-    this.#driver.start(this.#config);
-    this.#restartFade();
+  #canSample() {
+    return !this.#disposed && this.#enabled && !this.#pageHidden && !this.#document.hidden
+      && this.#preferences.soundCue && typeof this.#window.AudioContext === 'function';
   }
 
-  #stop() {
-    if (!this.#active) return;
-    this.#active = false;
-    this.#driver.stop();
+  #syncSoundButton() {
+    this.#soundButton.disabled = !this.#canSample() || this.#audio !== null;
+    this.#container.dataset.soundPlaying = String(Boolean(this.#audio?.oscillator));
   }
 
-  #restartFade() {
-    const controls = this.#container.querySelectorAll('.orb-copy, .preview-session-button, .phase-timings');
-    for (const control of controls) control.style.animationName = 'none';
-    void this.#container.offsetWidth;
-    for (const control of controls) control.style.animationName = '';
-  }
-
-  #render(snapshot) {
-    const running = snapshot.status === 'running';
-    const phase = snapshot.phase ?? PHASES[0];
-    const key = `${snapshot.status}:${snapshot.phaseStartedAtMs}:${phase}`;
-    if (key !== this.#visualKey) {
-      this.#visualKey = key;
-      this.#visual.dataset.state = running ? 'running' : 'idle';
-      this.#visual.dataset.phase = phase;
-      this.#visual.style.setProperty('--phase-duration', `${snapshot.phaseDurationMs}ms`);
-      this.#visual.style.setProperty('--phase-delay', `${-snapshot.phaseElapsedMs}ms`);
-      const animated = [this.#orb, this.#fill, this.#fill.parentElement];
-      for (const node of animated) node.style.animationName = 'none';
-      void this.#orb.offsetWidth;
-      for (const node of animated) node.style.animationName = '';
-      for (const step of this.#track.children) {
-        if (running && step.dataset.phase === phase) step.setAttribute('aria-current', 'step');
-        else step.removeAttribute('aria-current');
-      }
+  #sampleSound() {
+    if (!this.#canSample() || this.#audio) return;
+    try {
+      const audio = { context: new this.#window.AudioContext(), oscillator: null, gain: null };
+      this.#audio = audio;
+      this.#syncSoundButton();
+      if (audio.context.state === 'running') this.#playSound(audio);
+      else Promise.resolve(audio.context.resume()).then(() => this.#playSound(audio)).catch(() => {
+        if (this.#audio === audio) this.#stopSound();
+      });
+    } catch {
+      this.#stopSound();
     }
-    this.#caption.textContent = phaseLabel(phase);
-    this.#count.textContent = String(running
-      ? Math.min(snapshot.phaseDurationMs / 1000, Math.ceil(snapshot.phaseRemainingMs / 1000))
-      : this.#config.inhale);
+  }
+
+  #playSound(audio) {
+    if (this.#audio !== audio || !this.#canSample()) return;
+    try {
+      const { context } = audio;
+      const oscillator = audio.oscillator = context.createOscillator();
+      const gain = audio.gain = context.createGain();
+      const start = context.currentTime;
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(440, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.035, start + 0.015);
+      gain.gain.linearRampToValueAtTime(0, start + 0.18);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.onended = () => { if (this.#audio === audio) this.#stopSound(); };
+      oscillator.start(start);
+      oscillator.stop(start + 0.18);
+      this.#syncSoundButton();
+    } catch {
+      this.#stopSound();
+    }
+  }
+
+  #stopSound() {
+    const audio = this.#audio;
+    this.#audio = null;
+    if (audio) {
+      if (audio.oscillator) {
+        audio.oscillator.onended = null;
+        try { audio.oscillator.stop(); } catch {}
+        try { audio.oscillator.disconnect(); } catch {}
+      }
+      try { audio.gain?.disconnect(); } catch {}
+      try { Promise.resolve(audio.context.close()).catch(() => {}); } catch {}
+    }
+    this.#syncSoundButton();
   }
 }

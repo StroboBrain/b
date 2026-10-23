@@ -14,6 +14,7 @@ import { InstallPrompt } from './install-prompt.js';
 import { SectionScroller } from './section-scroller.js';
 import { OutsideDismissal } from './outside-dismissal.js';
 import { ResetConfirmation } from './reset-confirmation.js';
+import { ReturnNavigation } from './return-navigation.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const TOGGLE_PREFERENCES = {
@@ -82,7 +83,7 @@ export class BreathingApp {
     this.#elements = collectElements(document);
     this.#store = store;
     this.#sessionView = new SessionView({ elements: this.#elements });
-    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .settings-link, .settings-preview'));
+    this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .section-navigation, .settings-link, .settings-preview'));
     this.#wakeLock = new WakeLockGuard({ navigator: window.navigator, document });
     this.#cues = new PhaseCues({ window, document });
     this.#session = new SessionDriver({ engine,
@@ -115,6 +116,9 @@ export class BreathingApp {
     } });
     this.#preview = new SettingsPreview({ document, window, container: this.#elements['settings-preview'] });
     this.#sections = new SectionScroller({ document, window });
+    new ReturnNavigation({ window, breathing: this.#elements['breathing-visual'],
+      button: this.#elements['back-to-breathing-button'],
+    });
     this.#resetConfirmation = new ResetConfirmation({ document, window,
       button: this.#elements['clear-local-data-button'], panel: this.#elements['reset-confirmation'],
       confirmButton: this.#elements['reset-confirm-button'], cancelButton: this.#elements['reset-cancel-button'],

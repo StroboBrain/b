@@ -27,6 +27,7 @@ export class SectionScroller {
   #pendingOrigin = null;
   #settleTimer;
   #animation = null;
+  #restingPosition = null;
   #listeners = [];
 
   constructor({ document = globalThis.document, window = globalThis.window } = {}) {
@@ -114,6 +115,7 @@ export class SectionScroller {
     this.#listen(window, 'resize', () => this.#resize());
     this.#listen(window, 'blur', () => this.#interrupt(true));
     if (window.visualViewport?.addEventListener) this.#listen(window.visualViewport, 'resize', () => this.#resize());
+    this.#rememberPageEdge();
   }
 
   dispose() {
@@ -171,12 +173,38 @@ export class SectionScroller {
     const width = this.#window.innerWidth, height = this.#window.innerHeight;
     if (!this.#canNavigate()) { this.#interrupt(); return; }
     if (width === this.#viewportWidth && height === this.#viewportHeight) return;
-    // Chrome's address bar changes height during scrolling; svh page sizes stay stable.
+    // Browser toolbar changes must not interrupt an active swipe or glide.
     const toolbar = this.#touchViewport.matches && width === this.#viewportWidth
       && Math.abs(height - this.#viewportHeight) <= 160;
+    const resting = this.#restingPosition;
+    const idle = !this.#gesture && !this.#wheel && !this.#animation && !this.#pointerActive && !this.#touchActive;
+    const preservePage = resting && Math.abs(this.#window.scrollY - resting.scroll) < 1
+      && idle;
     this.#viewportWidth = width;
     this.#viewportHeight = height;
     if (!toolbar) this.#interrupt(true);
+    if (preservePage) {
+      // Flexible page contents can move the page boundary after a resize. Keep
+      // an unchanged, completed landing at its new boundary without a glide.
+      const page = this.#origin().pages.find(page => page.element === resting.element);
+      if (page) {
+        this.#interrupt(true);
+        this.#window.scrollTo({ top: page[resting.edge], behavior: 'instant' });
+        this.#rememberPageEdge();
+      }
+    } else if (idle) {
+      // Chrome can clamp scrollY to the shorter document before delivering
+      // resize. Remember that new landing before another resize can follow.
+      this.#rememberPageEdge();
+    }
+  }
+
+  #rememberPageEdge() {
+    const { pages, index } = this.#origin();
+    const page = pages[index], scroll = this.#window.scrollY;
+    const edge = page && Math.abs(scroll - page.start) < 1 ? 'start'
+      : page && Math.abs(scroll - page.end) < 1 ? 'end' : null;
+    this.#restingPosition = edge ? { element: page.element, edge, scroll } : null;
   }
 
   #canNavigate() {
@@ -199,7 +227,7 @@ export class SectionScroller {
       const top = rect.top + scroll;
       const start = pages.length === 0 ? 0 : Math.max(0, Math.min(maximum, top - 8));
       const end = rect.height > height + 1 ? Math.min(maximum, Math.max(start, top + rect.height - height + 8)) : start;
-      pages.push({ start, end });
+      pages.push({ element, start, end });
     }
     let index = 0, nearest = Infinity;
     for (let i = 0; i < pages.length; i++) {
@@ -282,6 +310,7 @@ export class SectionScroller {
     if (this.#reducedMotion.matches || Math.abs(target - from) < 1) {
       this.#window.scrollTo({ top: target, behavior: 'instant' });
       this.#cancelAnimation();
+      this.#rememberPageEdge();
       return;
     }
     // Strength changes continuously rather than selecting a fixed animation.
@@ -312,7 +341,10 @@ export class SectionScroller {
         : Math.max(target, Math.min(current, position));
       this.#window.scrollTo({ top, behavior: 'instant' });
       if (progress < 1) animation.frame = this.#window.requestAnimationFrame(tick);
-      else this.#cancelAnimation();
+      else {
+        this.#cancelAnimation();
+        this.#rememberPageEdge();
+      }
     };
     // Start the handoff immediately rather than waiting for the next paint.
     tick(animation.start);

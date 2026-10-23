@@ -303,7 +303,7 @@ export class DurationPicker {
           sequence.timer = null;
           sequence.stage = 2;
           this.#revealButtons(controls);
-        }, STEP_REVEAL_DELAY_MS);
+        }, this.#stepRevealDelay(picker));
       }
     }
     const stage = fullyExpanded && sequence?.controls === controls ? sequence.stage : 0;
@@ -326,5 +326,13 @@ export class DurationPicker {
     if (!this.#revealSequence || this.#revealSequence.controls !== controls) return;
     this.#window.clearTimeout(this.#revealSequence.timer);
     this.#revealSequence = null;
+  }
+
+  #stepRevealDelay(picker) {
+    const value = this.#window.getComputedStyle?.(picker)?.getPropertyValue('--picker-step-fade-duration').trim() ?? '';
+    const match = /^(\d+(?:\.\d+)?|\.\d+)(ms|s)$/i.exec(value);
+    if (!match) return STEP_REVEAL_DELAY_MS;
+    const milliseconds = Number(match[1]) * (match[2].toLowerCase() === 's' ? 1000 : 1);
+    return Number.isFinite(milliseconds) ? milliseconds : STEP_REVEAL_DELAY_MS;
   }
 }

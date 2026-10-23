@@ -143,19 +143,40 @@ button:disabled, .preset-tile:has(:disabled) {
   scroll-margin-top: 8px;
 }
 .install-footer {
-  margin-top: 28px;
+  margin-top: 16px;
 }
 .install-footer:has(#install-button[hidden]) {
   display: none;
 }
 .feedback-page {
   container-type: inline-size;
-  min-height: calc(100svh - 8px);
-  padding-top: 24px;
-  padding-bottom: max(32px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(120px, 1fr) auto auto auto auto;
+  min-height: calc(100dvh - 8px);
+  padding-top: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
+.feedback-page > * { grid-column: 1 / -1; }
+.feedback-page > .settings-preview { grid-row: 1; }
 .feedback-page > .display-options {
-  margin-top: 24px;
+  grid-row: 2;
+  margin-top: 16px;
+}
+.feedback-page > .hold-options { grid-row: 3; }
+.feedback-page > .data-options { grid-row: 4; }
+.feedback-page > .install-footer { grid-column: 2; grid-row: 4; margin-left: 8px; }
+.feedback-page:has(#install-button:not([hidden])) > .data-options { grid-column: 1; }
+.feedback-page > .section-navigation {
+  grid-row: 5;
+  min-height: 48px;
+  align-self: end;
+}
+/* Keep a stable bottom row while the main breathing visual is still in view. */
+.feedback-page > .section-navigation:has(> button[hidden]) {
+  display: grid;
+  visibility: hidden;
+  pointer-events: none;
 }
 #install-button {
   width: 100%;
@@ -520,6 +541,20 @@ button:disabled, .preset-tile:has(:disabled) {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.animated-toggle > .toggle-label {
+  display: grid;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.toggle-label > span {
+  grid-area: 1 / 1;
+  transition: transform .32s ease, opacity .24s ease;
+}
+.toggle-label-on { opacity: 1; transform: translateX(0); }
+.toggle-label-off { opacity: 0; transform: translateX(-12px); }
+.animated-toggle:has(> input:not(:checked)) .toggle-label-on { opacity: 0; transform: translateX(12px); }
+.animated-toggle:has(> input:not(:checked)) .toggle-label-off { opacity: 1; transform: translateX(0); }
+.sound-toggle > .toggle-label, .time-toggle > .toggle-label { white-space: normal; }
 .hold-toggle {
   color: var(--text-control);
   gap: 8px;
@@ -560,9 +595,19 @@ button:disabled, .preset-tile:has(:disabled) {
   transform: translateX(14px);
 }
 .settings-link {
-  margin-top: 16px;
+  min-width: 0;
   width: 100%;
 }
+.section-navigation {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) 9px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  color: var(--text-control);
+}
+.section-navigation:has(> button[hidden]) { display: none; }
 .nav-arrow {
   width: 9px;
   height: 9px;
@@ -597,23 +642,24 @@ fieldset {
 }
 .hold-choices {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 .hold-choice {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
-  min-height: 132px;
-  padding: 16px 8px;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 4px;
   border: 1px solid var(--line-strong);
   border-radius: 3px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: 13px;
 }
 .display-toggle:hover:not(:has(:checked, :disabled)), .hold-choice:hover:not(:has(:checked, :disabled)) {
   border-color: var(--border-hover);
@@ -621,8 +667,9 @@ fieldset {
 }
 .hold-sample {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: clamp(24px, 8cqw, 40px);
+  aspect-ratio: 1;
+  flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
   background: var(--orb-dark);
@@ -741,6 +788,7 @@ fieldset {
 /* Native popovers sit above the page without occupying space in the timing boxes. */
 /* A timing cell opens vertically, keeping its readout at the center. */
 .duration-picker {
+  --picker-step-fade-duration: 160ms;
   position: fixed;
   inset: auto;
   width: 64px;
@@ -810,7 +858,8 @@ fieldset {
   font-size: 20px;
   line-height: 1;
   touch-action: none;
-  transition: opacity .16s ease, visibility 0s linear .16s;
+  transition: opacity var(--picker-step-fade-duration) ease,
+    visibility 0s linear var(--picker-step-fade-duration);
 }
 .duration-step:disabled { --picker-step-opacity: .4; }
 .duration-step[data-revealed="false"] {
@@ -847,8 +896,7 @@ fieldset {
 .settings-note:empty {
   display: none;
 }
-.data-options { margin-top: 24px; }
-.data-options .settings-note { margin: 0 0 10px; }
+.data-options { margin-top: 16px; }
 .data-options > .button { width: 100%; }
 .reset-confirmation {
   position: fixed;
@@ -884,9 +932,11 @@ fieldset {
 }
 .reset-confirmation-content {
   position: absolute;
-  bottom: 3px;
+  bottom: calc(var(--reset-closed-height, 48px) + 12px);
   left: 3px;
   right: 3px;
+  max-height: max(0px, calc(100% - var(--reset-closed-height, 48px) - 20px));
+  overflow-y: auto;
   padding: 8px;
   opacity: 0;
   transition: opacity .15s ease;
@@ -901,6 +951,42 @@ fieldset {
 .reset-confirmation-content p { margin: 0 0 14px; font-size: var(--text-body); }
 .reset-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .reset-actions .button { padding-inline: 8px; }
+.reset-confirmation-content .reset-hold-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+#reset-confirm-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  touch-action: none;
+}
+#reset-confirm-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--line);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+#reset-confirm-button[data-holding="true"]::before {
+  transform: scaleX(1);
+  /* This progress conveys the required hold time, including with reduced motion. */
+  transition: transform var(--reset-hold-duration, 3000ms) linear !important;
+}
+.reset-confirmation-anchor {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  place-items: center;
+  height: calc(var(--reset-closed-height, 48px) - 2px);
+  border-top: 1px solid var(--line-strong);
+  color: var(--text-control);
+  pointer-events: none;
+}
 .notification {
   position: fixed;
   bottom: max(24px, env(safe-area-inset-bottom));
@@ -932,44 +1018,65 @@ fieldset {
   line-height: 1.6;
 }
 
-/* Live display preview, shown while settings occupy their own page. */
+/* Static display preview, shown while settings occupy their own page. */
 .settings-preview {
   --orb-ratio: .8;
   --breath-small: .62;
   --breath-large: 1.16;
-  position: sticky;
-  top: 8px;
+  position: relative;
   z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: 8px 12px;
-  margin: 0 0 18px;
-  padding: 10px;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 14px 8px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
 }
 .settings-preview figcaption {
-  grid-column: 1 / -1;
+  position: absolute;
+  top: 0;
+  left: 4px;
+  max-width: calc(100% - 8px);
+  padding: 0 6px;
+  transform: translateY(-50%);
+  background: var(--surface);
   color: var(--text-control);
-  font-size: var(--text-label);
+  font-size: 18px;
+  font-weight: 500;
 }
 .settings-preview .breathing-visual {
   grid-column: 1;
-  grid-row: 2 / 4;
-  width: min(130px, 100%);
+  grid-row: 1 / 3;
+  width: min(176px, 100%);
   margin: 0 auto;
 }
 .settings-preview .phase-count { font-size: 32px; }
-.preview-session-button {
+.preview-actions {
   grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 6px;
   width: 100%;
-  min-height: 32px;
+}
+.preview-session-button {
+  width: 100%;
+  min-height: 44px;
   padding: 8px;
 }
+.preview-sound-button { width: 44px; min-height: 44px; padding: 10px; }
+.speaker-icon { width: 22px; height: 22px; }
+.settings-preview:not([data-sound-cue="true"]) .speaker-waves,
+.settings-preview[data-sound-cue="true"] .speaker-muted { display: none; }
+.settings-preview[data-sound-playing="true"] .preview-sound-button { border-color: var(--paper); }
 .settings-preview .phase-timings {
   grid-column: 2;
+  grid-row: 2;
+  align-self: start;
   width: 100%;
   margin: 0;
   padding: 6px;
@@ -988,10 +1095,16 @@ fieldset {
 .settings-preview[data-show-time="false"] .phase-count { display: none; }
 .settings-preview[data-show-timings="false"] .phase-timings { visibility: hidden; }
 .settings-preview[data-fade-buttons="true"] :is(.orb-copy, .preview-session-button, .phase-timings) {
-  animation: fade-interface .3s ease 2s forwards;
+  opacity: .25;
 }
+.settings-preview *, .settings-preview *::before, .settings-preview *::after {
+  animation: none !important;
+  transition: none !important;
+}
+.settings-preview .hold-feedback { visibility: visible; }
+.settings-preview .hold-fill { --hold-progress: .5; }
 @media (max-height: 500px) {
-  .settings-preview { padding: 6px; gap: 4px 8px; }
+  .settings-preview { padding: 10px 6px 6px; gap: 4px 8px; }
   .settings-preview .breathing-visual { width: min(80px, 100%); }
   .settings-preview .phase-caption { font-size: 11px; }
   .settings-preview .phase-count { font-size: 26px; margin-block: 0; }
@@ -1007,17 +1120,95 @@ fieldset {
   .app-shell { max-width: calc(1064px + var(--scrollbar-space)); }
   .practice-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(7, auto);
     gap: 32px;
-    align-items: start;
+    row-gap: 0;
+    min-height: calc(100svh - 8px);
+    align-content: start;
+    align-items: stretch;
   }
+  /* Shared rows align the patterns and hold-feedback boxes across both pages. */
+  .practice-card, .feedback-page {
+    display: grid;
+    container-type: normal;
+    grid-row: 1 / span 7;
+    grid-template-rows: subgrid;
+    min-height: 0;
+  }
+  .practice-card { grid-column: 1; }
+  .practice-primary { display: contents; }
+  .practice-primary > .breathing-visual { grid-row: 1; }
+  .practice-primary > #session-button { grid-row: 2; justify-self: center; }
+  .practice-primary > .phase-timings { grid-row: 3; }
+  .practice-primary > .preset-options { grid-row: 4; align-self: stretch; }
+  .preset-options > legend { font-size: 18px; }
+  .preset-options > .preset-tiles { height: 100%; grid-auto-rows: 1fr; }
+  .practice-primary > .settings-note { grid-row: 5; }
+  .practice-primary > .section-navigation { display: none; }
+  .feedback-page { grid-column: 2; grid-template-columns: minmax(0, 1fr); padding-top: 24px; }
+  .feedback-page > .display-options {
+    grid-row: 1 / 4;
+    align-self: start;
+    margin-top: 24px;
+  }
+  .feedback-page > .hold-options { grid-row: 4; align-self: stretch; }
+  .feedback-page > .data-options { grid-row: 5; }
+  .feedback-page > .install-footer { grid-column: 1; grid-row: 6; margin-left: 0; }
+  .feedback-page:has(#install-button:not([hidden])) > .data-options { grid-column: 1; }
+  .feedback-page > .section-navigation { grid-row: 7; min-height: 0; align-self: end; }
+  .feedback-page > .section-navigation:has(> button[hidden]) { display: none; }
+  .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .hold-choice { min-height: 132px; aspect-ratio: auto; gap: 8px; padding: 16px 8px; font-size: 15px; }
+  .hold-sample { width: 56px; height: 56px; }
   .settings-preview { display: none; }
 }
 
+/* Keep the whole settings page reachable at once on shorter portrait screens. */
+@media (max-height: 700px) and (max-width: 999px),
+       (max-height: 700px) and (hover: none),
+       (max-height: 700px) and (pointer: coarse) {
+  .feedback-page {
+    grid-template-rows: minmax(96px, 1fr) auto auto auto auto;
+    padding-top: 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .feedback-page > .install-footer { margin-top: 8px; }
+  .feedback-page > .display-options, .hold-options, .data-options, .section-navigation { margin-top: 8px; }
+  .feedback-page > :is(.display-options, .hold-options) { padding: 6px; }
+  .display-options > legend, .hold-options > legend { font-size: 14px; }
+  .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .display-toggle {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 2px;
+    min-height: 46px;
+    padding: 2px 3px;
+    font-size: 12px;
+    text-align: center;
+  }
+  .display-toggle > span { white-space: nowrap; }
+  .feedback-page > :is(.data-options, .install-footer) > .button, .section-navigation > .button {
+    min-height: 44px;
+    padding: 10px 8px;
+  }
+  .section-navigation { gap: 8px; }
+  .feedback-page > .section-navigation { min-height: 44px; }
+  .settings-preview { padding: 10px 6px 6px; gap: 4px 8px; }
+  .settings-preview figcaption { font-size: 14px; }
+  .settings-preview .breathing-visual { width: min(clamp(78px, calc(100dvh - 500px), 130px), 100%); }
+  .settings-preview .phase-caption { font-size: 11px; }
+  .settings-preview .phase-count { font-size: 26px; margin-block: 0; }
+  .settings-preview .preview-session-button { min-height: 44px; padding: 3px; }
+  .settings-preview .phase-timings { padding: 2px 4px; }
+  .settings-preview .phase-timings > legend { font-size: 10px; }
+  .settings-preview .phase-step { min-height: 16px; padding: 0; font-size: 10px; }
+}
+
 /* Exercise mode */
-.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .settings-link {
+.install-footer, .preset-options, .display-options, .hold-options, .data-options, .skip-link, .settings-link, .section-navigation {
   transition: opacity .3s ease, visibility 0s linear;
 }
-.is-zen .install-footer, .is-zen .settings-link, .is-zen .settings-preview,
+.is-zen .install-footer, .is-zen .settings-link, .is-zen .section-navigation, .is-zen .settings-preview,
 .is-zen .preset-options, .is-zen .display-options, .is-zen .hold-options, .is-zen .data-options, .is-zen .skip-link {
   opacity: 0;
   visibility: hidden;
