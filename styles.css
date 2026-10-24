@@ -467,6 +467,8 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 #session-button {
   width: calc(var(--visual-size) * var(--orb-ratio) * var(--breath-large));
+  max-width: 320px;
+  max-height: 56px;
   align-self: center;
   margin-top: 0;
   transition: background-color .4s ease, color .4s ease, border-color .4s ease;
@@ -504,6 +506,8 @@ button:disabled, .preset-tile:has(:disabled) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--box-gap);
+  max-height: 280px;
+  margin-block: auto;
 }
 .display-toggle {
   display: grid;
@@ -512,12 +516,13 @@ button:disabled, .preset-tile:has(:disabled) {
   align-items: center;
   gap: 8px;
   min-height: 60px;
+  max-height: 88px;
   padding: 10px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--ink);
   color: var(--text-secondary);
-  font-size: 17px;
+  font-size: 20px;
   text-align: left;
   transition: background-color .32s ease, border-color .32s ease;
 }
@@ -525,25 +530,70 @@ button:disabled, .preset-tile:has(:disabled) {
   background: var(--surface-selected);
   border-color: var(--border-hover);
 }
+.display-controls > .display-toggle { padding-inline-end: 6px; }
 .display-toggle > span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 .animated-toggle > .toggle-label {
   display: grid;
+  align-items: baseline;
   overflow: hidden;
   white-space: normal;
 }
+.display-toggle:nth-child(even) > .toggle-label { padding-inline-start: 8px; }
 .toggle-label > span {
   grid-area: 1 / 1;
-  align-self: center;
+  align-self: baseline;
   padding-block: 1px;
-  transition: transform .32s cubic-bezier(.22, 1, .36, 1), opacity .24s ease;
+  transition: transform .55s cubic-bezier(.22, 1, .36, 1), opacity .42s ease;
 }
 .toggle-label-on { opacity: 1; transform: translateX(0); }
 .toggle-label-off { opacity: 0; transform: translateX(-12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-on { opacity: 0; transform: translateX(12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-off { opacity: 1; transform: translateX(0); }
+.prefix-toggle > .toggle-label,
+.button-toggle > .toggle-label {
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: .1em;
+}
+/* The changing button prefix starts where the text and time words start. */
+.button-toggle > .toggle-label { grid-template-columns: max-content max-content minmax(0, 1fr); }
+.button-toggle > .toggle-label::before {
+  content: "no";
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+.prefix-toggle .toggle-label-off {
+  grid-area: 1 / 1;
+  transform: translateX(calc(-100% - .2em));
+}
+.prefix-toggle .toggle-label-on,
+.prefix-toggle:has(> input:not(:checked)) .toggle-label-on {
+  grid-area: 1 / 2;
+  opacity: 1;
+  transform: none;
+  overflow-wrap: normal;
+}
+.button-toggle .toggle-label-prefixes {
+  display: grid;
+  grid-area: 1 / 2;
+  overflow: hidden;
+  padding-block: 0;
+}
+.toggle-label-prefixes > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  padding-block: 1px;
+  transition: transform .55s cubic-bezier(.22, 1, .36, 1), opacity .42s ease;
+}
+.button-toggle .toggle-label-off { transform: translateX(-100%); }
+.button-toggle:has(> input:checked) .toggle-label-on { transition-delay: .16s; }
+.button-toggle:has(> input:not(:checked)) .toggle-label-on { transform: translateX(-100%); }
+.button-toggle .toggle-label-word {
+  grid-area: 1 / 3;
+  white-space: nowrap;
+}
 .hold-toggle {
   color: var(--text-control);
   gap: 8px;
@@ -555,33 +605,44 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 .toggle-mark {
   appearance: none;
+  position: relative;
   margin: 0;
   display: block;
   width: 36px;
   height: 22px;
-  padding: 2px;
-  border: 1px solid var(--line-strong);
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  background: var(--surface-pressed);
+  background: transparent;
   cursor: pointer;
+}
+.toggle-mark::before {
+  content: "";
+  position: absolute;
+  inset: 0 var(--toggle-track-inset, 0px) 0 0;
+  border: 1px solid var(--line-strong);
+  border-radius: inherit;
+  background: var(--surface-pressed);
   transition: background-color .32s ease, border-color .32s ease;
 }
 .toggle-mark::after {
   content: "";
-  display: block;
+  position: absolute;
+  top: 3px;
+  left: 3px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
   background: var(--text-control);
   transition: transform .32s cubic-bezier(.22, 1, .36, 1), background-color .32s ease;
 }
-.toggle-mark:checked {
+.toggle-mark:checked::before {
   background: var(--paper);
   border-color: var(--paper);
 }
 .toggle-mark:checked::after {
   background: var(--ink);
-  transform: translateX(14px);
+  transform: translateX(calc(14px - var(--toggle-track-inset, 0px)));
 }
 .settings-link {
   min-width: 0;
@@ -594,6 +655,8 @@ button:disabled, .preset-tile:has(:disabled) {
   align-items: center;
   gap: var(--box-gap);
   width: 100%;
+  max-width: 432px;
+  margin-inline: auto;
   margin-top: var(--box-gap);
   color: var(--text-control);
 }
@@ -625,19 +688,48 @@ fieldset {
 .preset-options, .display-options, .hold-options {
   margin-top: var(--box-gap);
 }
-/* Keep the timings clear while a grey wash draws attention to them. */
-.practice-card:has(#pattern-edit-hint:not([hidden])) { z-index: 10; }
-#timing-fields { position: relative; }
+/* Hold the clear timing layer above the wash until its fade-out completes. */
+.practice-card {
+  z-index: 0;
+  transition: z-index 0s linear .32s;
+}
+.practice-card:has(#pattern-edit-hint:not([hidden])) {
+  z-index: 10;
+  transition-delay: 0s;
+}
+.practice-card::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: repeating-linear-gradient(135deg,
+    transparent 0 9px, rgb(200 200 200 / .16) 9px 10px, transparent 10px 18px) rgb(72 72 72 / .35);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .32s ease, visibility 0s linear .32s;
+}
+.practice-card:has(#pattern-edit-hint:not([hidden]))::before {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+#timing-fields {
+  position: relative;
+  z-index: 0;
+  background: var(--surface);
+  transition: z-index 0s linear .32s;
+}
 #timing-fields:has(#pattern-edit-hint:not([hidden])) {
   z-index: 10;
-  background: var(--surface);
-  box-shadow: 0 0 0 200vmax rgb(72 72 72 / .35);
+  transition-delay: 0s;
 }
 .pattern-hint-window {
   position: absolute;
-  bottom: calc(100% + 12px);
+  bottom: calc(100% - 10px);
   inset-inline: 0;
-  height: 64px;
+  height: 192px;
+  container-type: inline-size;
   z-index: 2;
   overflow: clip;
   pointer-events: none;
@@ -652,21 +744,62 @@ fieldset {
   gap: 8px;
   max-width: calc(100% - 16px);
   margin: 0;
-  padding: 6px 8px;
+  padding: 8px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--surface-popover);
   color: var(--text-control);
-  font-size: var(--text-caption);
+  font-size: clamp(18px, 5cqw, 22px);
+  line-height: 1.25;
   pointer-events: none;
-  animation: hint-enter .7s cubic-bezier(.22, 1, .36, 1) both;
+  transform-origin: center bottom;
+  animation: hint-travel 2.4s linear both, hint-hop 2.4s linear both, hint-tilt 2.4s linear both;
 }
-@keyframes hint-enter {
-  from { opacity: 0; transform: translateX(100vw); }
-  55% { opacity: 1; transform: translate(0, 0); }
-  70% { transform: translate(0, -6px); }
-  85% { transform: translate(0, 1px); }
-  to { opacity: 1; transform: translate(0, 0); }
+/* Authored flight: hit the timings, rebound into the left wall, then land. */
+@keyframes hint-travel {
+  from { opacity: 0; translate: 100cqw 0; }
+  8% { opacity: 1; }
+  27% { translate: 0 0; }
+  44% { translate: calc(100% - 100cqw + 16px) 0; }
+  61%, to { opacity: 1; translate: 0 0; }
+}
+/* Quadratic arcs keep gravity consistent; each floor bounce loses energy. */
+@keyframes hint-hop {
+  from {
+    transform: translateY(-120px);
+    animation-timing-function: cubic-bezier(.333333, 0, .666667, .333333);
+  }
+  27%, 61%, 78% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(.333333, .666667, .666667, 1);
+  }
+  44% {
+    transform: translateY(-48px);
+    animation-timing-function: cubic-bezier(.333333, 0, .666667, .333333);
+  }
+  69.5% {
+    transform: translateY(-12px);
+    animation-timing-function: cubic-bezier(.333333, 0, .666667, .333333);
+  }
+  82.25% {
+    transform: translateY(-3px);
+    animation-timing-function: cubic-bezier(.333333, 0, .666667, .333333);
+  }
+  86.5%, to { transform: translateY(0); }
+}
+@keyframes hint-tilt {
+  from { rotate: -12deg; }
+  27%, 61%, 78%, 86.5%, to { rotate: 0deg; }
+  44% { rotate: -9deg; }
+  69.5% { rotate: 2deg; }
+  82.25% { rotate: -.7deg; }
+}
+@container (max-width: 340px) {
+  .pattern-hint-window { bottom: calc(100% + 2px); }
+}
+.pattern-hint-copy {
+  min-width: 0;
+  text-align: center;
 }
 .pattern-hint-arrow {
   position: relative;
@@ -674,7 +807,7 @@ fieldset {
   height: 20px;
   flex-shrink: 0;
   border-left: 1.5px solid currentColor;
-  margin-left: 4px;
+  margin-left: 2px;
 }
 .pattern-hint-arrow::before {
   content: "";
@@ -748,14 +881,15 @@ fieldset {
     --hold-progress: 1;
   }
 }
-.is-zen .hold-choice .hold-fill {
+.is-zen .hold-choice .hold-fill,
+html[data-section-scrolling="true"] .hold-choice .hold-fill {
   animation-play-state: paused;
 }
 /* Saved preset tiles and editor */
 .preset-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--box-gap);
+  gap: 16px;
   padding-top: 8px;
 }
 .preset-tile {
@@ -774,9 +908,11 @@ fieldset {
   color: var(--text-control);
   text-align: left;
 }
-.preset-tile:hover:not(:has(:checked, :disabled)) {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
+@media (hover: hover) and (pointer: fine) {
+  .preset-tile:hover:not(:has(:checked, :disabled)) {
+    background: var(--surface-hover);
+    border-color: var(--border-hover);
+  }
 }
 .preset-tile:has(:checked) {
   border-color: var(--border-selected);
@@ -1000,7 +1136,7 @@ fieldset {
   line-height: 1.6;
 }
 
-/* Static display preview, shown while settings occupy their own page. */
+/* Fixed inhale pose with repeating setting demonstrations on the settings page. */
 .settings-preview {
   --preview-progress: .75;
   --orb-ratio: .8;
@@ -1041,6 +1177,7 @@ fieldset {
 .settings-preview .breathing-orb {
   transform: scale(calc(var(--breath-small) + (var(--breath-large) - var(--breath-small)) * var(--preview-progress)));
   background-color: color-mix(in srgb, var(--breath-dark), var(--breath-light) calc(var(--preview-progress) * 100%));
+  animation: none;
   will-change: auto;
 }
 .settings-preview .orb-copy { --count-size: 42px; }
@@ -1084,14 +1221,36 @@ fieldset {
 .settings-preview[data-show-time="false"] .phase-count { display: none; }
 .settings-preview[data-show-timings="false"] .phase-timings { visibility: hidden; }
 .settings-preview[data-fade-buttons="true"] .preview-session-button {
-  opacity: .25;
+  animation: preview-button-fade 5s ease-in-out infinite;
 }
 .settings-preview *, .settings-preview *::before, .settings-preview *::after {
-  animation: none !important;
   transition: none !important;
 }
-.settings-preview .hold-feedback { visibility: visible; }
-.settings-preview .hold-fill { --hold-progress: var(--preview-progress); }
+.settings-preview .hold-feedback {
+  visibility: visible;
+  animation: preview-hold-tint 5s linear infinite;
+}
+.settings-preview .hold-fill {
+  animation: preview-hold-fill 5s linear infinite;
+}
+@keyframes preview-button-fade {
+  from, 40%, to { opacity: 1; }
+  48%, 72% { opacity: 0; }
+  86% { opacity: 1; }
+}
+@keyframes preview-hold-fill {
+  from { --hold-progress: 0; }
+  75%, to { --hold-progress: 1; }
+}
+/* Clear the tint before restarting so rise and sweep never jump backwards. */
+@keyframes preview-hold-tint {
+  from, 75% { opacity: .16; }
+  92%, to { opacity: 0; }
+}
+html[data-section-scrolling="true"] .settings-preview :is(.preview-session-button, .hold-feedback, .hold-fill),
+.is-zen .settings-preview :is(.preview-session-button, .hold-feedback, .hold-fill) {
+  animation-play-state: paused;
+}
 /* Cards keep the same controls and styling across devices. */
 @container (max-width: 340px) {
   .preset-name { font-size: 15px; left: 4px; max-width: calc(100% - 8px); padding-inline: 2px; }
@@ -1100,10 +1259,20 @@ fieldset {
     gap: 4px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 15px;
+    font-size: 18px;
     text-align: left;
   }
   .display-toggle > span { white-space: nowrap; }
+  .display-controls > .display-toggle { --toggle-track-inset: 4px; padding: 1px 0; column-gap: 0; font-size: 17px; line-height: 1.2; }
+  .display-controls > .display-toggle:nth-child(even) > .toggle-label { padding-inline-start: 2px; }
+  .animated-toggle > .toggle-label { column-gap: .1em; }
+  .button-toggle > .toggle-label { grid-template-columns: max-content minmax(0, 1fr); }
+  .button-toggle .toggle-label-word { grid-area: 2 / 2; margin-top: -2px; }
+  .sound-toggle .toggle-label-on { max-width: 4em; }
+  @media (orientation: portrait) and (max-height: 550px) {
+    .feedback-page:has(#install-button:not([hidden])) .settings-preview .phase-timings > legend { display: none; }
+    .feedback-page:has(#install-button:not([hidden])) .settings-preview .preview-session-button { min-height: 10px; }
+  }
 }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
   .app-shell { max-width: calc(1136px + var(--scrollbar-space)); }
@@ -1156,7 +1325,8 @@ fieldset {
        (max-height: 800px) and (pointer: coarse) {
   .practice-card { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .practice-primary > .breathing-visual { margin-bottom: 4px; }
-  .practice-card :is(.phase-timings, .preset-options) { padding: 6px; }
+  .practice-card .phase-timings { padding: 6px; }
+  .practice-card .preset-options { padding: 10px; }
   .practice-card .preset-tiles { padding-top: 6px; }
   .feedback-page {
     grid-template-rows: auto auto auto auto minmax(44px, 1fr);
@@ -1170,7 +1340,7 @@ fieldset {
     gap: 4px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 15px;
+    font-size: 18px;
     text-align: left;
   }
   .display-toggle > span { white-space: nowrap; }
@@ -1205,15 +1375,28 @@ fieldset {
   .feedback-page > .display-options { display: flex; flex-direction: column; }
   .feedback-page .display-controls { flex: 1; }
   .feedback-page > .section-navigation { margin-top: var(--box-gap); }
-  .practice-primary { --visual-size: min(288px, 100%, max(64px, calc(100dvh - 560px))); }
+  .practice-primary { --visual-size: min(320px, 100%, max(64px, calc(100dvh - 560px))); }
+  .practice-primary > .preset-options {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0px;
+    max-height: 350px;
+    padding: 12px;
+  }
+  .practice-primary > .preset-options > .preset-tiles {
+    flex: 1;
+    grid-auto-rows: minmax(44px, 1fr);
+  }
+  .practice-primary > .breathing-visual { margin-top: auto; }
+  .practice-primary .preset-tile { max-height: 88px; }
   .practice-primary > .breathing-visual .orb-copy { --count-size: clamp(38px, 8dvh, 68px); }
   .hold-choice { width: 100%; max-height: clamp(44px, calc(100dvh - 480px), 92px); }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr) 36px;
     min-height: 48px;
-    gap: 6px;
-    padding: 3px 6px;
-    font-size: 16px;
+    gap: 0;
+    padding: 3px 8px 3px 1px;
+    font-size: clamp(18px, 5.1cqw, 21px);
     line-height: 1.25;
     text-align: left;
   }
@@ -1223,12 +1406,13 @@ fieldset {
   .practice-primary { --visual-size: min(160px, 100%, max(64px, calc(100dvh - 448px))); }
   .practice-primary > .breathing-visual { margin-bottom: 2px; }
   .practice-primary > #session-button { min-height: 44px; padding-block: 6px; }
-  .practice-card :is(.phase-timings, .preset-options) { padding: 4px; }
+  .practice-card .phase-timings { padding: 4px; }
+  .practice-primary > .preset-options { padding: 8px; }
   .practice-card .duration-button { min-height: 56px; gap: 2px; padding-block: 2px; }
-  .practice-card .preset-tiles { padding-top: 4px; }
+  .practice-card .preset-tiles { padding-top: 4px; gap: 12px; }
   .practice-card .preset-tile { min-height: 44px; padding: 6px 8px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 4px; }
-  .display-toggle { min-height: 44px; padding: 2px 4px; gap: 4px; font-size: 15px; line-height: 1.2; }
+  .display-toggle { min-height: 44px; padding: 2px 3px; gap: 4px; font-size: 17px; line-height: 1.2; }
 }
 @media (orientation: portrait) and (max-height: 600px) {
   .feedback-page { padding-top: 8px; }
@@ -1259,8 +1443,11 @@ fieldset {
 /* Keep three settings rows and installation visible on the shortest phones. */
 @media (orientation: portrait) and (max-height: 550px) {
   .practice-primary { --visual-size: 64px; }
+  .practice-primary > .preset-options { padding-block: 4px; }
+  .practice-card .preset-tiles { gap: 10px; }
   .feedback-page { padding-top: 6px; }
-  .display-toggle { min-height: 28px; }
+  .display-toggle { min-height: 28px; padding-inline: 1px; gap: 0; }
+  .prefix-toggle > .toggle-label, .button-toggle > .toggle-label { column-gap: .1em; }
   .settings-preview { padding-block: 0; }
   .settings-preview .breathing-visual { width: clamp(56px, calc(100dvh - 424px), 64px); }
   .settings-preview .preview-session-button { min-height: 16px; }

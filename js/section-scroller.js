@@ -115,6 +115,8 @@ export class SectionScroller {
     this.#listen(window, 'resize', () => this.#resize());
     this.#listen(window, 'blur', () => this.#interrupt(true));
     if (window.visualViewport?.addEventListener) this.#listen(window.visualViewport, 'resize', () => this.#resize());
+    const columnLayout = window.matchMedia('(min-width: 1000px) and (hover: hover) and (pointer: fine)');
+    if (typeof columnLayout.addEventListener === 'function') this.#listen(columnLayout, 'change', () => this.#resize());
     this.#rememberPageEdge();
   }
 
@@ -207,11 +209,11 @@ export class SectionScroller {
     this.#restingPosition = edge ? { element: page.element, edge, scroll } : null;
   }
 
-  #canNavigate() {
+  #canNavigate(checkLayout = true) {
     const active = this.#document.activeElement;
     const editing = active?.isContentEditable || active?.tagName === 'TEXTAREA'
       || (active?.tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'button', 'submit', 'reset'].includes(active.type));
-    return !this.#document.hidden && !editing && !this.#hasColumns() && !this.#document.body.classList.contains('is-zen')
+    return !this.#document.hidden && !editing && (!checkLayout || !this.#hasColumns()) && !this.#document.body.classList.contains('is-zen')
       && (this.#window.visualViewport?.scale ?? 1) === 1
       && !this.#document.querySelector(':popover-open, dialog[open]');
   }
@@ -327,12 +329,15 @@ export class SectionScroller {
     this.#animation = animation;
     const tick = now => {
       if (this.#animation !== animation) return;
-      if (!this.#canNavigate()) { this.#cancelAnimation(); return; }
+      // Layout is checked at navigation and on viewport/media changes. Measuring
+      // page rectangles here would force style/layout work on every scroll frame.
+      if (!this.#canNavigate(false)) { this.#cancelAnimation(); return; }
       const progress = Math.min(1, Math.max(0, (now - animation.start) / animation.duration));
-      // Match the release speed and ease to rest with zero acceleration and
-      // jerk at both ends, so the handoff and the landing feel continuous.
-      const eased = progress ** 4 * (35 + progress * (-84 + progress * (70 - 20 * progress)))
-        + velocity * progress * (1 - progress) ** 4 * (1 + 4 * progress + 10 * progress ** 2);
+      // Match the release speed and keep acceleration zero at both ends. A
+      // fifth-degree curve avoids long stretches of subpixel movement that
+      // make the start and finish appear to stall on integer scroll offsets.
+      const eased = progress ** 3 * (10 + progress * (-15 + 6 * progress))
+        + velocity * progress * (1 - progress) ** 3 * (1 + 3 * progress);
       const position = from + distance * eased;
       // Chrome may deliver one final native momentum frame after touchend. Never
       // pull back against it while the glide catches up.

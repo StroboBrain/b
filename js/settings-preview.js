@@ -2,7 +2,7 @@ import { DEFAULT_CONFIG, validateConfig } from './breathing-engine.js';
 import { DEFAULT_PREFERENCES } from './preset-store.js';
 import { formatDuration, phaseLabel } from './phase-labels.js';
 
-/** A still display sample. Its optional sound plays only from an explicit gesture. */
+/** A fixed inhale sample with CSS setting demos and sound only from an explicit gesture. */
 export class SettingsPreview {
   #document;
   #window;

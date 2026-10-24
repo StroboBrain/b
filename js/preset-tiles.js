@@ -17,7 +17,6 @@ export class PresetTiles {
   #listeners = [];
   #signature;
   #pressed = null;
-  #heldSelection = null;
   #lastTap = null;
   #holdTimer;
   #hintTimer;
@@ -39,12 +38,7 @@ export class PresetTiles {
     this.#listen('change', ({ target }) => {
       if (target.matches('input[type="radio"]') && target.checked && !target.matches(':disabled')
         && this.#tiles.has(target.value)) {
-        const held = this.#heldSelection === target.value;
-        this.dismissHint();
-        this.#onSelect(target.value);
-        // A held, newly selected radio changes after pointerup. Keep its hint
-        // visible after the selection callback has rendered the new pattern.
-        if (held) this.#showHint();
+        this.#select(target.value);
       }
     });
     this.#listen('pointerdown', event => this.#press(event));
@@ -88,7 +82,6 @@ export class PresetTiles {
     for (const preset of presets) {
       const tile = this.#tiles.get(preset.id) ?? this.#createTile(preset.id);
       const input = tile.querySelector('input');
-      input.checked = preset.id === selectedId;
       tile.querySelector('.preset-name').textContent = preset.name;
       tile.querySelector('.preset-timing').textContent = `${PHASES.map((phase) => preset.config[phase]).join(' · ')} s`;
       const description = PHASES.map((phase) => preset.config[phase] === 0
@@ -98,6 +91,7 @@ export class PresetTiles {
     }
     this.#tiles = next;
     if (reordered) this.#container.replaceChildren(...next.values());
+    this.#checkOnly(selectedId);
   }
 
   dispose() {
@@ -109,7 +103,6 @@ export class PresetTiles {
   /** Clear the guidance when timings are opened, edited, or left behind. */
   dismissHint() {
     this.#cancelPress();
-    this.#heldSelection = null;
     this.#lastTap = null;
     this.#window.clearTimeout(this.#hintTimer);
     this.#hintTimer = undefined;
@@ -133,7 +126,6 @@ export class PresetTiles {
 
   #press(event) {
     this.#cancelPress();
-    this.#heldSelection = null;
     if (event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
     const tile = this.#tileFor(event.target);
     if (!tile) return;
@@ -144,6 +136,9 @@ export class PresetTiles {
       if (this.#pressed !== pressed || !this.#tileFor(tile)) return;
       this.#holdTimer = undefined;
       pressed.held = true;
+      // Commit before pointerup. Selection can synchronously render the app and
+      // dismiss guidance, so show the held pattern's hint after that render.
+      if (!tile.querySelector('input').checked) this.#select(pressed.id);
       this.#showHint();
     }, HOLD_MS);
   }
@@ -154,8 +149,22 @@ export class PresetTiles {
     const tile = this.#tileFor(event.target);
     this.#cancelPress();
     if (tile?.dataset.preset !== pressed.id) return;
-    if (pressed.held) this.#heldSelection = pressed.id;
-    else if (pressed.selected && tile.querySelector('input').checked) this.#tap(pressed.id);
+    if (!pressed.held && pressed.selected && tile.querySelector('input').checked) this.#tap(pressed.id);
+  }
+
+  #select(id) {
+    this.dismissHint();
+    this.#checkOnly(id);
+    this.#onSelect(id);
+  }
+
+  #checkOnly(id) {
+    const selected = this.#tiles.get(id).querySelector('input');
+    for (const tile of this.#tiles.values()) {
+      const input = tile.querySelector('input');
+      if (input !== selected) input.checked = false;
+    }
+    selected.checked = true;
   }
 
   #cancelPress() {
