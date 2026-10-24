@@ -135,10 +135,10 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 /* Page layout */
 .app-shell {
-  max-width: calc(552px + var(--scrollbar-space));
+  max-width: calc(560px + var(--scrollbar-space));
   margin: auto;
-  padding: 8px 6px 0;
-  padding-left: calc(6px + var(--scrollbar-space));
+  padding: 8px 4px 0;
+  padding-left: calc(4px + var(--scrollbar-space));
 }
 .app-page {
   min-width: 0;
@@ -158,7 +158,7 @@ button:disabled, .preset-tile:has(:disabled) {
   grid-template-rows: auto auto auto auto minmax(48px, 1fr);
   min-height: calc(100dvh - 8px);
   padding-top: 16px;
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
 .feedback-page > * { grid-column: 1 / -1; }
 .feedback-page > .settings-preview { grid-row: 1; }
@@ -191,7 +191,7 @@ button:disabled, .preset-tile:has(:disabled) {
   min-width: 0;
   background: var(--surface);
   position: relative;
-  padding: 4px 0 max(16px, env(safe-area-inset-bottom));
+  padding: 4px 0 max(24px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   container-type: inline-size;
@@ -585,9 +585,10 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 .section-navigation {
   display: grid;
-  grid-template-columns: 9px minmax(0, 1fr) 9px;
+  /* The rotated 9px arrows fit inside these slots, flush with the box edges. */
+  grid-template-columns: 13px minmax(0, 1fr) 13px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   margin-top: 16px;
   color: var(--text-control);
@@ -601,7 +602,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .nav-arrow {
   width: 9px;
   height: 9px;
-  flex: 0 0 9px;
+  justify-self: center;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
 }
@@ -1090,20 +1091,19 @@ fieldset {
 /* Cards keep the same controls and styling across devices. */
 @container (max-width: 340px) {
   .preset-name { font-size: 15px; left: 4px; max-width: calc(100% - 8px); padding-inline: 2px; }
-  .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .display-controls { gap: 6px; }
   .display-toggle {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: 2px;
+    grid-template-columns: minmax(0, 1fr) 36px;
+    gap: 4px;
     min-height: 46px;
     padding: 2px 3px;
     font-size: 15px;
-    text-align: center;
+    text-align: left;
   }
   .display-toggle > span { white-space: nowrap; }
 }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
-  .app-shell { max-width: calc(1120px + var(--scrollbar-space)); }
+  .app-shell { max-width: calc(1136px + var(--scrollbar-space)); }
   .practice-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(7, auto);
@@ -1151,7 +1151,7 @@ fieldset {
 @media (max-height: 800px) and (max-width: 999px),
        (max-height: 800px) and (hover: none),
        (max-height: 800px) and (pointer: coarse) {
-  .practice-card { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .practice-card { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .practice-primary > .section-navigation { padding-top: 8px; }
   .practice-primary > .breathing-visual { margin-bottom: 4px; }
   .practice-primary > .phase-timings { margin-top: 12px; }
@@ -1160,28 +1160,27 @@ fieldset {
   .feedback-page {
     grid-template-rows: auto auto auto auto minmax(44px, 1fr);
     padding-top: 8px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
   .feedback-page > .install-footer { margin-top: 8px; }
   .feedback-page > .display-options, .hold-options, .section-navigation { margin-top: 8px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 6px; }
   .display-options > legend, .hold-options > legend { font-size: 17px; }
-  .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .display-controls { gap: 6px; }
   .display-toggle {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: 2px;
+    grid-template-columns: minmax(0, 1fr) 36px;
+    gap: 4px;
     min-height: 46px;
     padding: 2px 3px;
     font-size: 15px;
-    text-align: center;
+    text-align: left;
   }
   .display-toggle > span { white-space: nowrap; }
   .feedback-page > .install-footer > .button, .section-navigation > .button {
     min-height: 44px;
     padding: 10px 8px;
   }
-  .section-navigation { gap: 8px; }
+  .section-navigation { gap: 4px; }
   .feedback-page > .section-navigation { min-height: 44px; }
   .settings-preview { padding: 10px 6px 6px; gap: 4px; }
   .settings-preview figcaption { font-size: 17px; }
@@ -1209,24 +1208,23 @@ fieldset {
   .feedback-page > .display-options { display: flex; flex-direction: column; }
   .feedback-page .display-controls { flex: 1; }
   .feedback-page > .section-navigation { margin-top: 12px; }
-  .practice-primary { --visual-size: min(288px, 100%, max(64px, calc(100dvh - 552px))); }
+  .practice-primary { --visual-size: min(288px, 100%, max(64px, calc(100dvh - 560px))); }
   .practice-primary > .breathing-visual .orb-copy { --count-size: clamp(38px, 8dvh, 68px); }
   .hold-choice { width: 100%; max-height: clamp(44px, calc(100dvh - 480px), 92px); }
-  .display-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .display-controls { gap: 6px; }
   .display-toggle {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
+    grid-template-columns: minmax(0, 1fr) 36px;
     min-height: 48px;
-    gap: 2px;
-    padding: 3px 2px;
+    gap: 6px;
+    padding: 3px 6px;
     font-size: 16px;
     line-height: 1.25;
-    text-align: center;
+    text-align: left;
   }
 }
 @media (orientation: portrait) and (max-height: 600px) {
   .practice-card { padding-top: 2px; }
-  .practice-primary { --visual-size: min(160px, 100%, max(64px, calc(100dvh - 440px))); }
+  .practice-primary { --visual-size: min(160px, 100%, max(64px, calc(100dvh - 448px))); }
   .practice-primary > .breathing-visual { margin-bottom: 2px; }
   .practice-primary > #session-button { min-height: 44px; padding-block: 6px; }
   .practice-primary > .phase-timings { margin-top: 6px; }
@@ -1235,20 +1233,16 @@ fieldset {
   .practice-card .preset-options { margin-top: 6px; }
   .practice-card .preset-tiles { padding-top: 4px; gap: 8px; }
   .practice-card .preset-tile { min-height: 44px; padding: 6px 8px; }
-  .practice-primary > .section-navigation { padding-top: 6px; }
+  .practice-primary > .section-navigation { padding-top: 4px; }
   .feedback-page > .display-options, .feedback-page > .hold-options, .feedback-page > .install-footer { margin-top: 6px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 4px; }
   .display-controls { gap: 4px; }
-  .display-toggle { min-height: 44px; padding: 2px; font-size: 15px; line-height: 1.2; }
-}
-@media (orientation: portrait) and (max-height: 500px) {
-  .practice-primary { --visual-size: 64px; }
-  .display-toggle { padding-block: 1px; gap: 1px; }
+  .display-toggle { min-height: 44px; padding: 2px 4px; gap: 4px; font-size: 15px; line-height: 1.2; }
 }
 @media (orientation: portrait) and (max-height: 600px) {
-  .feedback-page { padding-top: 14px; }
+  .feedback-page { padding-top: 8px; }
   .settings-preview { padding: 2px 4px 0; gap: 0; }
-  .settings-preview .breathing-visual { width: clamp(64px, calc(100dvh - 488px), 88px); }
+  .settings-preview .breathing-visual { width: clamp(64px, calc(100dvh - 504px), 88px); }
   .settings-preview .phase-caption { line-height: 1; }
   .settings-preview .orb-copy { --count-size: clamp(24px, calc(100dvh - 500px), 32px); }
   .settings-preview .preview-session-button { width: 64px; min-height: 20px; padding: 0; }
@@ -1264,13 +1258,28 @@ fieldset {
 @media (orientation: portrait) and (min-height: 601px) and (max-height: 800px) {
   .feedback-page { padding-top: 24px; }
 }
-@media (orientation: portrait) and (min-height: 601px) and (max-height: 640px) {
-  .settings-preview { padding-block: 6px 4px; gap: 2px; }
+@media (orientation: portrait) and (min-height: 601px) and (max-height: 720px) {
+  .feedback-page { padding-top: 16px; }
+  .settings-preview { padding-block: 4px 2px; gap: 1px; }
   .settings-preview .breathing-visual { width: clamp(72px, calc(100dvh - 536px), 104px); }
   .settings-preview .preview-session-button { min-height: 20px; padding: 0; }
   .settings-preview .duration-button { min-height: 36px; gap: 1px; padding-block: 1px; }
-  .display-toggle { padding-block: 2px; gap: 1px; }
-  .hold-choice { max-height: 88px; }
+  .display-toggle { min-height: 44px; padding-block: 2px; }
+  .hold-choice { max-height: clamp(44px, calc(100dvh - 552px), 64px); padding: 2px; gap: 2px; line-height: 1.2; }
+  .hold-sample { width: clamp(18px, calc(100dvh - 582px), 36px); }
+}
+/* Keep three settings rows and installation visible on the shortest phones. */
+@media (orientation: portrait) and (max-height: 540px) {
+  .practice-primary { --visual-size: 64px; }
+  .feedback-page { padding-top: 6px; }
+  .display-toggle { min-height: 32px; }
+  .settings-preview { padding-block: 0; }
+  .settings-preview .preview-session-button { min-height: 18px; }
+  .settings-preview .phase-timings { padding: 0; }
+}
+@media (orientation: portrait) and (min-height: 801px) and (max-height: 850px) {
+  .feedback-page { padding-top: 24px; }
+  .settings-preview .breathing-visual { width: 104px; }
 }
 @media (orientation: portrait) and (min-height: 700px) {
   .feedback-page .display-controls { grid-auto-rows: 1fr; }
