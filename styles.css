@@ -40,6 +40,7 @@
   --text-label: 16px;
   --text-body: 17px;
   --text-input: 18px;
+  --box-gap: 8px;
 }
 
 /* Base elements and accessibility */
@@ -146,7 +147,7 @@ button:disabled, .preset-tile:has(:disabled) {
   scroll-margin-top: 8px;
 }
 .install-footer {
-  margin-top: 16px;
+  margin-top: var(--box-gap);
 }
 .install-footer:has(#install-button[hidden]) {
   display: none;
@@ -164,7 +165,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .feedback-page > .settings-preview { grid-row: 1; }
 .feedback-page > .display-options {
   grid-row: 2;
-  margin-top: 16px;
+  margin-top: var(--box-gap);
 }
 .feedback-page > .hold-options { grid-row: 3; }
 .feedback-page > .install-footer { grid-row: 4; }
@@ -185,7 +186,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .practice-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
+  gap: var(--box-gap);
 }
 .practice-card {
   min-width: 0;
@@ -350,8 +351,11 @@ button:disabled, .preset-tile:has(:disabled) {
   font-size: var(--count-size);
   line-height: 1;
   font-weight: 300;
-  letter-spacing: -2px;
+  letter-spacing: normal;
   font-variant-numeric: tabular-nums;
+  /* Center the visible digits without the font's extra ascender/descender space. */
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   margin: 0;
 }
 .app-shell:has(#show-breath-numbers:not(:checked)) .phase-caption,
@@ -397,7 +401,7 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 /* Phase timing track */
 .phase-track {
-  --phase-gap: 5px;
+  --phase-gap: var(--box-gap);
   position: relative;
   isolation: isolate;
   display: grid;
@@ -499,7 +503,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .display-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--box-gap);
 }
 .display-toggle {
   display: grid;
@@ -588,15 +592,14 @@ button:disabled, .preset-tile:has(:disabled) {
   /* The rotated 9px arrows fit inside these slots, flush with the box edges. */
   grid-template-columns: 13px minmax(0, 1fr) 13px;
   align-items: center;
-  gap: 8px;
+  gap: var(--box-gap);
   width: 100%;
-  margin-top: 16px;
+  margin-top: var(--box-gap);
   color: var(--text-control);
 }
 .practice-primary > .section-navigation {
   margin-top: auto;
-  margin-bottom: 12px;
-  padding-top: 16px;
+  padding-top: var(--box-gap);
 }
 .section-navigation:has(> button[hidden]) { display: none; }
 .nav-arrow {
@@ -620,7 +623,7 @@ fieldset {
   border-radius: 6px;
 }
 .preset-options, .display-options, .hold-options {
-  margin-top: 12px;
+  margin-top: var(--box-gap);
 }
 /* Keep the timings clear while a grey wash draws attention to them. */
 .practice-card:has(#pattern-edit-hint:not([hidden])) { z-index: 10; }
@@ -696,7 +699,7 @@ fieldset {
 .hold-choices {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: var(--box-gap);
 }
 .hold-choice {
   display: flex;
@@ -752,7 +755,7 @@ fieldset {
 .preset-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 12px;
+  gap: var(--box-gap);
   padding-top: 8px;
 }
 .preset-tile {
@@ -786,14 +789,14 @@ fieldset {
   left: 8px;
   transform: translateY(-50%);
   max-width: calc(100% - 16px);
-  padding: 2px 5px;
+  padding: 0 5px;
   border-radius: 5px;
   background: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 17px;
-  line-height: 1.2;
+  font-size: 15px;
+  line-height: 1;
   font-weight: 500;
   overflow-wrap: anywhere;
   text-transform: lowercase;
@@ -809,7 +812,7 @@ fieldset {
   font-variant-numeric: tabular-nums;
 }
 .phase-timings {
-  margin-top: 16px;
+  margin-top: var(--box-gap);
 }
 .label-detail {
   font-size: var(--text-caption);
@@ -837,6 +840,7 @@ fieldset {
   transition: background-color .18s, border-color .18s;
 }
 .duration-button:disabled { opacity: 1; }
+.phase-track > .phase-step > .duration-button { width: 100%; }
 .practice-card:not([data-state="idle"]) .duration-button { transition: none; }
 .phase-time { color: var(--text-control); }
 .phase-step[aria-current="step"] .phase-time { color: inherit; }
@@ -1066,7 +1070,7 @@ fieldset {
   margin: 0;
   padding: 6px;
 }
-.settings-preview .phase-track { --phase-gap: 3px; }
+.settings-preview .phase-track { --phase-gap: var(--box-gap); }
 .settings-preview .phase-step { min-height: 0; }
 .settings-preview .duration-button {
   width: 100%;
@@ -1091,7 +1095,6 @@ fieldset {
 /* Cards keep the same controls and styling across devices. */
 @container (max-width: 340px) {
   .preset-name { font-size: 15px; left: 4px; max-width: calc(100% - 8px); padding-inline: 2px; }
-  .display-controls { gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr) 36px;
     gap: 4px;
@@ -1107,7 +1110,7 @@ fieldset {
   .practice-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(7, auto);
-    gap: 32px;
+    gap: var(--box-gap);
     row-gap: 0;
     min-height: calc(100svh - 8px);
     align-content: start;
@@ -1141,7 +1144,7 @@ fieldset {
   .feedback-page > .install-footer { grid-column: 1; grid-row: 6; margin-left: 0; }
   .feedback-page > .section-navigation { grid-row: 7; min-height: 0; align-self: end; }
   .feedback-page > .section-navigation:has(> button[hidden]) { display: none; }
-  .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .hold-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hold-choice { min-height: 132px; aspect-ratio: auto; gap: 8px; padding: 16px 8px; font-size: 17px; }
   .hold-sample { width: 56px; height: 56px; }
   .settings-preview { display: none; }
@@ -1152,21 +1155,16 @@ fieldset {
        (max-height: 800px) and (hover: none),
        (max-height: 800px) and (pointer: coarse) {
   .practice-card { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
-  .practice-primary > .section-navigation { padding-top: 8px; }
   .practice-primary > .breathing-visual { margin-bottom: 4px; }
-  .practice-primary > .phase-timings { margin-top: 12px; }
   .practice-card :is(.phase-timings, .preset-options) { padding: 6px; }
-  .practice-card .preset-tiles { row-gap: 14px; padding-top: 6px; }
+  .practice-card .preset-tiles { padding-top: 6px; }
   .feedback-page {
     grid-template-rows: auto auto auto auto minmax(44px, 1fr);
     padding-top: 8px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
-  .feedback-page > .install-footer { margin-top: 8px; }
-  .feedback-page > .display-options, .hold-options, .section-navigation { margin-top: 8px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 6px; }
   .display-options > legend, .hold-options > legend { font-size: 17px; }
-  .display-controls { gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr) 36px;
     gap: 4px;
@@ -1180,7 +1178,6 @@ fieldset {
     min-height: 44px;
     padding: 10px 8px;
   }
-  .section-navigation { gap: 4px; }
   .feedback-page > .section-navigation { min-height: 44px; }
   .settings-preview { padding: 10px 6px 6px; gap: 4px; }
   .settings-preview figcaption { font-size: 17px; }
@@ -1200,18 +1197,17 @@ fieldset {
 @media (orientation: portrait) and (max-width: 999px),
        (orientation: portrait) and (hover: none),
        (orientation: portrait) and (pointer: coarse) {
-  .practice-layout { gap: 8px; }
+  .practice-layout { gap: var(--box-gap); }
   .feedback-page {
     grid-template-rows: auto minmax(min-content, 1fr) auto auto auto;
     padding-top: 40px;
   }
   .feedback-page > .display-options { display: flex; flex-direction: column; }
   .feedback-page .display-controls { flex: 1; }
-  .feedback-page > .section-navigation { margin-top: 12px; }
+  .feedback-page > .section-navigation { margin-top: var(--box-gap); }
   .practice-primary { --visual-size: min(288px, 100%, max(64px, calc(100dvh - 560px))); }
   .practice-primary > .breathing-visual .orb-copy { --count-size: clamp(38px, 8dvh, 68px); }
   .hold-choice { width: 100%; max-height: clamp(44px, calc(100dvh - 480px), 92px); }
-  .display-controls { gap: 6px; }
   .display-toggle {
     grid-template-columns: minmax(0, 1fr) 36px;
     min-height: 48px;
@@ -1227,16 +1223,11 @@ fieldset {
   .practice-primary { --visual-size: min(160px, 100%, max(64px, calc(100dvh - 448px))); }
   .practice-primary > .breathing-visual { margin-bottom: 2px; }
   .practice-primary > #session-button { min-height: 44px; padding-block: 6px; }
-  .practice-primary > .phase-timings { margin-top: 6px; }
   .practice-card :is(.phase-timings, .preset-options) { padding: 4px; }
   .practice-card .duration-button { min-height: 56px; gap: 2px; padding-block: 2px; }
-  .practice-card .preset-options { margin-top: 6px; }
-  .practice-card .preset-tiles { padding-top: 4px; gap: 8px; }
+  .practice-card .preset-tiles { padding-top: 4px; }
   .practice-card .preset-tile { min-height: 44px; padding: 6px 8px; }
-  .practice-primary > .section-navigation { padding-top: 4px; }
-  .feedback-page > .display-options, .feedback-page > .hold-options, .feedback-page > .install-footer { margin-top: 6px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 4px; }
-  .display-controls { gap: 4px; }
   .display-toggle { min-height: 44px; padding: 2px 4px; gap: 4px; font-size: 15px; line-height: 1.2; }
 }
 @media (orientation: portrait) and (max-height: 600px) {
@@ -1248,11 +1239,8 @@ fieldset {
   .settings-preview .preview-session-button { width: 64px; min-height: 20px; padding: 0; }
   .settings-preview .phase-timings { padding: 2px; }
   .settings-preview .duration-button { min-height: 34px; line-height: 1.2; gap: 1px; padding-block: 1px; }
-  .feedback-page > .display-options, .feedback-page > .hold-options, .feedback-page > .install-footer { margin-top: 4px; }
-  .feedback-page > .section-navigation { margin-top: 4px; }
   .feedback-page > :is(.display-options, .hold-options) { padding: 2px; }
-  .hold-choices { gap: 4px; }
-  .hold-choice { min-height: 44px; padding: 2px; gap: 2px; line-height: 1.2; }
+  .hold-choice { min-height: 44px; max-height: clamp(44px, calc(100dvh - 510px), 64px); padding: 2px; gap: 2px; line-height: 1.2; }
   .hold-sample { width: clamp(18px, calc(100dvh - 510px), 36px); }
 }
 @media (orientation: portrait) and (min-height: 601px) and (max-height: 800px) {
@@ -1269,12 +1257,13 @@ fieldset {
   .hold-sample { width: clamp(18px, calc(100dvh - 582px), 36px); }
 }
 /* Keep three settings rows and installation visible on the shortest phones. */
-@media (orientation: portrait) and (max-height: 540px) {
+@media (orientation: portrait) and (max-height: 550px) {
   .practice-primary { --visual-size: 64px; }
   .feedback-page { padding-top: 6px; }
-  .display-toggle { min-height: 32px; }
+  .display-toggle { min-height: 28px; }
   .settings-preview { padding-block: 0; }
-  .settings-preview .preview-session-button { min-height: 18px; }
+  .settings-preview .breathing-visual { width: clamp(56px, calc(100dvh - 424px), 64px); }
+  .settings-preview .preview-session-button { min-height: 16px; }
   .settings-preview .phase-timings { padding: 0; }
 }
 @media (orientation: portrait) and (min-height: 801px) and (max-height: 850px) {
