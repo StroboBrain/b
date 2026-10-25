@@ -3,7 +3,6 @@ import { phaseDescription, spokenDuration } from './phase-labels.js';
 
 const REPEAT_TAP_MS = 700;
 const HOLD_MS = 550;
-const HINT_MS = 4000;
 const MOVE_TOLERANCE_PX = 10;
 
 /** Renders native radios without replacing focused controls for a name/timing edit. */
@@ -11,7 +10,7 @@ export class PresetTiles {
   #document;
   #container;
   #onSelect;
-  #onHint;
+  #onEdit;
   #window;
   #tiles = new Map();
   #listeners = [];
@@ -19,21 +18,21 @@ export class PresetTiles {
   #pressed = null;
   #lastTap = null;
   #holdTimer;
-  #hintTimer;
-  #hintVisible = false;
-  #hintVersion = 0;
+  #heldRelease = null;
+  #disposed = false;
+  #selectedId;
 
-  constructor({ document, container, onSelect, onHint = () => {}, window = globalThis } = {}) {
+  constructor({ document, container, onSelect, onEdit = () => {}, window = globalThis } = {}) {
     if (typeof document?.createElement !== 'function' || typeof container?.replaceChildren !== 'function'
-      || typeof container.addEventListener !== 'function' || typeof onSelect !== 'function'
-      || typeof onHint !== 'function' || typeof window?.setTimeout !== 'function'
+      || typeof container.addEventListener !== 'function' || typeof container.removeEventListener !== 'function'
+      || typeof onSelect !== 'function' || typeof onEdit !== 'function' || typeof window?.setTimeout !== 'function'
       || typeof window.clearTimeout !== 'function') {
       throw new TypeError('Pattern tiles require a document, container, callbacks and timer clock.');
     }
     this.#document = document;
     this.#container = container;
     this.#onSelect = onSelect;
-    this.#onHint = onHint;
+    this.#onEdit = onEdit;
     this.#window = window;
     this.#listen('change', ({ target }) => {
       if (target.matches('input[type="radio"]') && target.checked && !target.matches(':disabled')
@@ -46,18 +45,27 @@ export class PresetTiles {
     this.#listen('pointermove', event => {
       const pressed = this.#pressed;
       if (pressed && Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > MOVE_TOLERANCE_PX) {
-        this.#cancelPress();
+        this.cancelInteraction();
       }
     });
-    for (const type of ['pointercancel', 'pointerleave']) this.#listen(type, () => this.#cancelPress());
+    this.#listen('pointercancel', () => this.cancelInteraction());
+    // Touch browsers emit pointerleave after an ordinary lift. Preserve the
+    // completed tap so a second touch can use the repeated-tap shortcut.
+    this.#listen('pointerleave', () => this.#cancelPress());
     this.#listen('contextmenu', event => {
       if (this.#tileFor(event.target)) event.preventDefault();
     });
     this.#listen('keydown', event => {
       if (event.key !== ' ' || event.repeat) return;
       const tile = this.#tileFor(event.target);
-      if (tile?.querySelector('input').checked) this.#tap(tile.dataset.preset);
+      if (tile?.querySelector('input').checked && this.#tap(tile.dataset.preset)) event.preventDefault();
     });
+    if (typeof document.addEventListener === 'function' && typeof document.removeEventListener === 'function') {
+      this.#listen('visibilitychange', () => { if (document.hidden) this.cancelInteraction(); }, document);
+    }
+    if (typeof window.addEventListener === 'function' && typeof window.removeEventListener === 'function') {
+      for (const type of ['blur', 'pagehide']) this.#listen(type, () => this.cancelInteraction(), window);
+    }
   }
 
   render(presets, selectedId) {
@@ -74,7 +82,7 @@ export class PresetTiles {
     if (!ids.has(selectedId)) throw new RangeError('The selected pattern must be in the list.');
 
     const signature = JSON.stringify([selectedId, presets]);
-    if (this.#signature !== undefined && this.#signature !== signature) this.dismissHint();
+    if (this.#signature !== undefined && this.#signature !== signature) this.cancelInteraction();
     this.#signature = signature;
     const reordered = presets.length !== this.#tiles.size
       || presets.some((preset, index) => this.#container.children[index]?.dataset.preset !== preset.id);
@@ -95,55 +103,65 @@ export class PresetTiles {
   }
 
   dispose() {
-    this.dismissHint();
-    for (const [type, listener] of this.#listeners) this.#container.removeEventListener(type, listener);
+    this.#disposed = true;
+    this.cancelInteraction();
+    for (const remove of this.#listeners) remove();
     this.#listeners = [];
   }
 
-  /** Clear the guidance when timings are opened, edited, or left behind. */
-  dismissHint() {
+  /** Cancel a pending hold or repeated tap when editing, navigating or leaving. */
+  cancelInteraction() {
     this.#cancelPress();
     this.#lastTap = null;
-    this.#window.clearTimeout(this.#hintTimer);
-    this.#hintTimer = undefined;
-    this.#hintVersion++;
-    if (this.#hintVisible) {
-      this.#hintVisible = false;
-      this.#onHint(false);
-    }
+    this.#heldRelease = null;
   }
 
-  #listen(type, listener) {
-    this.#container.addEventListener(type, listener);
-    this.#listeners.push([type, listener]);
+  #listen(type, listener, target = this.#container) {
+    target.addEventListener(type, listener);
+    this.#listeners.push(() => target.removeEventListener(type, listener));
   }
 
   #tileFor(target) {
     const tile = target?.closest?.('.preset-tile');
-    return tile && this.#tiles.get(tile.dataset.preset) === tile && !tile.querySelector('input').matches(':disabled')
+    return !this.#disposed && tile && this.#tiles.get(tile.dataset.preset) === tile && !tile.querySelector('input').matches(':disabled')
       ? tile : null;
   }
 
   #press(event) {
     this.#cancelPress();
-    if (event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
+    this.#heldRelease = null;
+    if (event.defaultPrevented || event.isPrimary === false || (event.button !== undefined && event.button !== 0)) {
+      this.cancelInteraction();
+      return;
+    }
     const tile = this.#tileFor(event.target);
     if (!tile) return;
     const pressed = { id: tile.dataset.preset, pointerId: event.pointerId,
       x: event.clientX, y: event.clientY, selected: tile.querySelector('input').checked, held: false };
+    // Selection is immediate. Its callback can render and cancel old gesture
+    // state, so arm this hold only after the selected pattern is synchronized.
+    if (!pressed.selected) this.#select(pressed.id);
+    if (!this.#tileFor(tile) || !tile.querySelector('input').checked) return;
     this.#pressed = pressed;
     this.#holdTimer = this.#window.setTimeout(() => {
       if (this.#pressed !== pressed || !this.#tileFor(tile)) return;
       this.#holdTimer = undefined;
       pressed.held = true;
-      // Commit before pointerup. Selection can synchronously render the app and
-      // dismiss guidance, so show the held pattern's hint after that render.
-      if (!tile.querySelector('input').checked) this.#select(pressed.id);
-      this.#showHint();
+      // The hold only requests editing; this pattern was selected on press.
+      if (!this.#tileFor(tile) || !tile.querySelector('input').checked) return;
+      this.cancelInteraction();
+      this.#heldRelease = pressed.pointerId;
+      this.#onEdit(pressed.id);
     }, HOLD_MS);
   }
 
   #release(event) {
+    if (this.#heldRelease !== null && event.pointerId === this.#heldRelease) {
+      this.#heldRelease = null;
+      this.#cancelPress();
+      event.preventDefault?.();
+      return;
+    }
     const pressed = this.#pressed;
     if (!pressed || event.pointerId !== pressed.pointerId) return;
     const tile = this.#tileFor(event.target);
@@ -153,12 +171,14 @@ export class PresetTiles {
   }
 
   #select(id) {
-    this.dismissHint();
+    if (this.#selectedId === id) return;
+    this.cancelInteraction();
     this.#checkOnly(id);
     this.#onSelect(id);
   }
 
   #checkOnly(id) {
+    this.#selectedId = id;
     const selected = this.#tiles.get(id).querySelector('input');
     for (const tile of this.#tiles.values()) {
       const input = tile.querySelector('input');
@@ -176,21 +196,11 @@ export class PresetTiles {
   #tap(id) {
     const time = this.#window.performance?.now?.() ?? Date.now();
     if (this.#lastTap?.id === id && time >= this.#lastTap.time && time - this.#lastTap.time <= REPEAT_TAP_MS) {
-      this.#showHint();
+      this.cancelInteraction();
+      this.#onEdit(id);
+      return true;
     } else this.#lastTap = { id, time };
-  }
-
-  #showHint() {
-    this.#lastTap = null;
-    if (!this.#hintVisible) {
-      this.#hintVisible = true;
-      this.#onHint(true);
-    }
-    this.#window.clearTimeout(this.#hintTimer);
-    const version = ++this.#hintVersion;
-    this.#hintTimer = this.#window.setTimeout(() => {
-      if (version === this.#hintVersion) this.dismissHint();
-    }, HINT_MS);
+    return false;
   }
 
   #createTile(id) {

@@ -26,7 +26,7 @@ export class SessionView {
       ui['timing-fields'].disabled = active;
       ui['session-button'].disabled = false;
       ui['session-button-label'].textContent = running ? 'stop' : status === 'paused' ? 'resume' : 'start';
-      ui['session-button-icon'].className = running ? 'icon-stop' : 'icon-play';
+      ui['session-button-icon'].className = 'icon-play';
       ui['phase-caption'].textContent = status === 'paused' ? `${label} · paused` : label;
 
       const visual = ui['breathing-visual'];

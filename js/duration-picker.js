@@ -25,6 +25,9 @@ export class DurationPicker {
   #viewportBounds;
   #resizeObserver;
   #revealSequence = null;
+  #openingSource = null;
+  #disposed = false;
+  #closing = new Map();
 
   constructor({ document, window, container, onChange, canChange = () => true,
     canActivateOutside = () => false } = {}) {
@@ -48,16 +51,25 @@ export class DurationPicker {
       return [phase, controls];
     }));
 
+    // Pattern gestures can open the editor before their trailing click arrives.
+    this.#listen(document, 'pointerdown', () => { this.#openingSource = null; }, true);
+    this.#listen(document, 'click', (event) => {
+      if (!this.#openingSource?.contains(event.target)) return;
+      this.#openingSource = null;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
     this.#outsideDismissal = new OutsideDismissal({ document,
       surface: () => Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'))?.picker,
       onDismiss: () => this.close(),
       isInside: (event, surface) => {
-        // Another timing or explicit page navigation is a direct destination.
+        // Another timing, pattern or explicit navigation is a direct destination.
         // Other outside controls still consume the gesture for dismissal.
         const button = event.target?.closest?.('button');
-        if (button && !button.matches(':disabled') && this.#canChange()
-          && (canActivateOutside(button)
-            || Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface))) return true;
+        const destination = button ?? event.target?.closest?.('.preset-tile');
+        if (destination && !destination.matches(':disabled') && this.#canChange()
+          && (canActivateOutside(destination)
+            || (button && Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface)))) return true;
         if (typeof event.composedPath === 'function') return event.composedPath().includes(surface);
         for (let element = event.target; element; element = element.parentElement) {
           if (element === surface) return true;
@@ -92,14 +104,18 @@ export class DurationPicker {
       this.#listen(controls.picker, 'scroll', () => this.#revealButtons(controls));
       this.#listen(controls.picker, 'transitionend', (event) => {
         if (event.target === controls.picker && event.propertyName === 'height') this.#revealButtons(controls);
+        if (event.target === controls.picker && ['display', 'overlay'].includes(event.propertyName)
+          && !controls.picker.matches(':popover-open')) this.#finishClosing(controls);
       });
       this.#listen(controls.picker, 'toggle', () => {
         const open = controls.picker.matches(':popover-open');
         controls.value.setAttribute('aria-expanded', String(open));
         if (!open) {
+          this.#prepareClose(controls);
           this.#finishPress();
           this.#cancelReveal(controls);
           this.#revealButtons(controls);
+          this.#watchClose(controls);
         }
       });
     }
@@ -119,21 +135,42 @@ export class DurationPicker {
     for (const phase of PHASES) this.#renderValue(phase);
   }
 
+  /** Open a phase from another control without toggling an already open editor. */
+  open(phase, { source = null } = {}) {
+    if (!PHASES.includes(phase)) throw new RangeError('Choose a supported breathing phase.');
+    if (source !== null && typeof source.contains !== 'function') {
+      throw new TypeError('An opening source must contain its gesture targets.');
+    }
+    const controls = this.#controls[phase];
+    if (this.#disposed || !this.#values || !this.#canChange() || controls.value.matches(':disabled')
+      || controls.picker.matches(':popover-open')) return false;
+    this.#open(phase);
+    this.#openingSource = source;
+    return true;
+  }
+
   close({ immediately = false } = {}) {
+    this.#openingSource = null;
     this.#finishPress();
     const controls = this.#revealSequence?.controls;
     this.#cancelReveal(controls);
-    for (const { picker } of Object.values(this.#controls)) {
-      if (picker.matches(':popover-open')) picker.hidePopover();
+    for (const control of Object.values(this.#controls)) {
+      const { picker } = control;
+      if (picker.matches(':popover-open')) {
+        this.#prepareClose(control);
+        picker.hidePopover();
+        this.#watchClose(control);
+      }
       // A page change must also remove any native light-dismissal exit that
       // started before the navigation click reached the app.
-      if (immediately) for (const animation of picker.getAnimations?.() ?? []) animation.finish?.();
+      if (immediately) this.#finishImmediately(control);
     }
     if (controls) this.#revealButtons(controls);
   }
 
   dispose() {
-    this.close();
+    this.#disposed = true;
+    this.close({ immediately: true });
     this.#resizeObserver?.disconnect();
     this.#outsideDismissal.dispose();
     for (const remove of this.#listeners) remove();
@@ -150,6 +187,7 @@ export class DurationPicker {
     if (!button || button.matches(':disabled') || !this.#canChange()) return;
     const phase = button.dataset.field;
     if (!PHASES.includes(phase)) return;
+    if (this.#controls[phase].picker.dataset.closing === 'true' && button !== this.#controls[phase].value) return;
     if (button.classList.contains('picker-done')) {
       this.close();
       this.#controls[phase].value.focus({ preventScroll: true });
@@ -168,7 +206,8 @@ export class DurationPicker {
   #startPress(event) {
     const button = event.target.closest('.duration-step');
     if (!button || event.button !== 0 || event.isPrimary === false
-      || button.matches(':disabled') || !this.#canChange()) return;
+      || button.matches(':disabled') || !this.#canChange()
+      || this.#controls[button.dataset.field]?.picker.dataset.closing === 'true') return;
     this.#finishPress();
     this.#pointerClick = button;
     if (!this.#step(button)) return;
@@ -242,6 +281,8 @@ export class DurationPicker {
       return;
     }
     this.close();
+    this.#finishClosing(controls);
+    picker.inert = false;
     this.#revealSequence = { controls, stage: 0, timer: null };
     trigger.focus({ preventScroll: true });
     const anchor = trigger.getBoundingClientRect();
@@ -256,6 +297,7 @@ export class DurationPicker {
   #positionOpenPicker() {
     const bounds = visibleViewport(this.#window);
     if (Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
+    for (const controls of this.#closing.keys()) this.#finishImmediately(controls);
     const entry = Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'));
     if (entry) this.#position(entry[0], bounds);
   }
@@ -269,6 +311,7 @@ export class DurationPicker {
     // The expanded column occupies the timing cell's width. Its center stays
     // over the original time while the adjustment buttons grow above and below.
     const viewportWidth = Math.max(0, width - 16);
+    picker.style.setProperty('--picker-center-height', `${controls['picked-value'].closest('.picker-center').offsetHeight}px`);
     picker.style.width = `${Math.max(52, anchor.width)}px`;
     picker.style.maxWidth = `${viewportWidth}px`;
     picker.style.maxHeight = `${Math.max(0, height - 16)}px`;
@@ -342,6 +385,43 @@ export class DurationPicker {
     if (!this.#revealSequence || this.#revealSequence.controls !== controls) return;
     this.#window.clearTimeout(this.#revealSequence.timer);
     this.#revealSequence = null;
+  }
+
+  #prepareClose(controls) {
+    if (this.#closing.has(controls)) return;
+    this.#closing.set(controls, {});
+    controls.picker.dataset.closing = 'true';
+    controls.picker.inert = true;
+    controls.value.setAttribute('aria-expanded', 'false');
+    for (const button of [controls.increase, controls['fine-increase'], controls['fine-decrease'], controls.decrease]) {
+      button.dataset.folding = String(button.dataset.revealed === 'true');
+      button.inert = true;
+    }
+  }
+
+  #watchClose(controls) {
+    const closing = this.#closing.get(controls);
+    if (!closing || closing.watching) return;
+    closing.watching = true;
+    const animations = controls.picker.getAnimations?.({ subtree: true }) ?? [];
+    const finished = animations.map(animation => animation.finished).filter(promise => typeof promise?.then === 'function');
+    if (!animations.length) this.#finishClosing(controls);
+    else if (finished.length) Promise.allSettled(finished).then(() => {
+      if (this.#closing.get(controls) === closing && !controls.picker.matches(':popover-open')) this.#finishClosing(controls);
+    });
+  }
+
+  #finishClosing(controls) {
+    this.#closing.delete(controls);
+    delete controls.picker.dataset.closing;
+    for (const button of [controls.increase, controls['fine-increase'], controls['fine-decrease'], controls.decrease]) {
+      delete button.dataset.folding;
+    }
+  }
+
+  #finishImmediately(controls) {
+    for (const animation of controls.picker.getAnimations?.({ subtree: true }) ?? []) animation.finish?.();
+    this.#finishClosing(controls);
   }
 
   #cssTime(style, property, fallback) {
