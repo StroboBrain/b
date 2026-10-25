@@ -2,7 +2,11 @@
 .duration-picker {
   --picker-step-fade-duration: 260ms;
   --picker-slide-duration: 500ms;
-  background: rgb(20 20 20 / .28);
+  background: linear-gradient(to bottom,
+    var(--surface-popover) 0 var(--picker-center-top, calc(50% - var(--picker-center-height, 56px) / 2)),
+    transparent var(--picker-center-top, calc(50% - var(--picker-center-height, 56px) / 2)) var(--picker-center-bottom, calc(50% + var(--picker-center-height, 56px) / 2)),
+    var(--surface-popover) var(--picker-center-bottom, calc(50% + var(--picker-center-height, 56px) / 2)) 100%);
+  background-origin: border-box;
   box-shadow: 0 8px 24px rgb(0 0 0 / .2);
   backdrop-filter: none;
 }
@@ -40,6 +44,30 @@
 }
 .duration-picker[data-transferring="true"] .picker-center > * {
   opacity: 0;
+}
+.duration-picker[data-closing="true"] {
+  height: var(--picker-closed-height, 56px);
+  top: var(--picker-closed-top, 0px);
+  transition:
+    height var(--picker-close-collapse-duration, 760ms) var(--picker-close-collapse-easing, cubic-bezier(.7, 0, .84, 0)) var(--picker-close-collapse-delay, 0ms),
+    top var(--picker-close-collapse-duration, 760ms) var(--picker-close-collapse-easing, cubic-bezier(.7, 0, .84, 0)) var(--picker-close-collapse-delay, 0ms),
+    display var(--picker-close-total-duration, 760ms) allow-discrete,
+    overlay var(--picker-close-total-duration, 760ms) allow-discrete;
+}
+.duration-picker[data-closing="true"] .duration-step[data-folding="true"] {
+  --picker-close-step-duration: var(--picker-close-coarse-duration);
+  --picker-close-step-delay: 0ms;
+  visibility: hidden;
+  opacity: 0;
+  transform: var(--picker-close-transform);
+  transition:
+    opacity var(--picker-close-step-duration) var(--picker-close-opacity-easing) var(--picker-close-step-delay),
+    visibility 0s linear calc(var(--picker-close-step-delay) + var(--picker-close-step-duration)),
+    transform var(--picker-close-step-duration) var(--picker-close-transform-easing) var(--picker-close-step-delay);
+}
+.duration-picker[data-closing="true"] .duration-fine-step[data-folding="true"] {
+  --picker-close-step-duration: var(--picker-close-fine-duration);
+  --picker-close-step-delay: var(--picker-close-coarse-duration);
 }
 @starting-style {
   .duration-picker[data-transferring="true"]:popover-open {

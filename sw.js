@@ -1,15 +1,15 @@
 // Keep the legacy prefix so each hosted path can clean up its earlier caches.
 const CACHE_PREFIX = `still-${encodeURIComponent(self.registration.scope)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}f79ad2ce4562`;
+const CACHE_NAME = `${CACHE_PREFIX}ba2d2d042cde`;
 const APP_SHELL = [
   './index.html',
   './styles.css',
   './popup.css',
-  './developer/entry.js',
-  './developer/developer-mode.js',
-  './developer/developer-mode.css',
-  './developer/popup-variants.js',
-  './developer/popup-variants.css',
+  
+  
+  
+  
+  
   './js/app.js',
   './js/main.js',
   './js/offline-support.js',
@@ -17,6 +17,8 @@ const APP_SHELL = [
   './js/preset-tiles.js',
   './js/phase-labels.js',
   './js/phase-caption.js',
+  './js/phase-motion.js',
+  './js/css-time.js',
   './js/session-view.js',
   './js/settings-preview.js',
   './js/install-prompt.js',

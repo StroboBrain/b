@@ -2,11 +2,13 @@ import { CONFIG_LIMITS, PHASES, validateConfig } from './breathing-engine.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 import { OutsideDismissal } from './outside-dismissal.js';
 import { visibleViewport } from './viewport-layout.js';
+import { parseCssMilliseconds, readCssMilliseconds } from './css-time.js';
 
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
 const STEP_REVEAL_DELAY_MS = 160;
-const STEP_REVEAL_PAUSE_MS = 240;
+const STEP_REVEAL_PAUSE_MS = 120;
+const EXPANSION_DURATION_MS = 760;
 const SLIDE_DURATION_MS = 500;
 
 /** Timing controls only. The caller owns editing policy and persistence.
@@ -66,6 +68,8 @@ export class DurationPicker {
       surface: () => Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'))?.picker,
       onDismiss: () => this.close(),
       isInside: (event, surface) => {
+        const path = event.composedPath?.();
+        if (path?.some(node => node?.dataset?.keepDurationPickerOpen === 'true')) return true;
         // Another timing, pattern or explicit navigation is a direct destination.
         // Other outside controls still consume the gesture for dismissal.
         const button = event.target?.closest?.('button');
@@ -73,9 +77,9 @@ export class DurationPicker {
         if (destination && !destination.matches(':disabled') && this.#canChange()
           && (canActivateOutside(destination)
             || (button && Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface)))) return true;
-        if (typeof event.composedPath === 'function') return event.composedPath().includes(surface);
+        if (path) return path.includes(surface);
         for (let element = event.target; element; element = element.parentElement) {
-          if (element === surface) return true;
+          if (element === surface || element.dataset?.keepDurationPickerOpen === 'true') return true;
         }
         return false;
       },
@@ -87,8 +91,8 @@ export class DurationPicker {
     this.#listen(document, 'pointerup', release);
     this.#listen(document, 'pointercancel', release);
     this.#listen(container, 'lostpointercapture', release);
-    // Keep targets still while native section snapping settles in the page.
-    // Only a real viewport resize should move an already open picker.
+    // Viewport and layout changes reposition an open editor; ordinary scrolls
+    // leave its targets still while a gesture is in progress.
     this.#listen(window, 'resize', () => this.#positionOpenPicker());
     if (window.visualViewport?.addEventListener) {
       this.#listen(window.visualViewport, 'resize', () => this.#positionOpenPicker());
@@ -126,12 +130,18 @@ export class DurationPicker {
     }
     if (typeof window.ResizeObserver === 'function') {
       this.#resizeObserver = new window.ResizeObserver((entries) => {
+        if (this.#disposed) return;
+        let layoutChanged = false;
         for (const entry of entries) {
           const controls = Object.values(this.#controls).find(({ picker }) => picker === entry.target);
           if (controls) this.#revealButtons(controls);
+          else if (entry.target === container || entry.target === container.parentElement) layoutChanged = true;
         }
+        if (layoutChanged) this.#positionOpenPicker({ layoutChanged: true });
       });
       for (const { picker } of Object.values(this.#controls)) this.#resizeObserver.observe(picker);
+      this.#resizeObserver.observe(container);
+      if (container.parentElement) this.#resizeObserver.observe(container.parentElement);
     }
   }
 
@@ -269,8 +279,6 @@ export class DurationPicker {
     if (time) time.textContent = duration;
     else controls.value.textContent = duration;
     controls.value.setAttribute('aria-label', `adjust ${phaseDescription(phase)} duration, ${spokenDuration(value)}`);
-    const field = controls.value.closest('.timing-field') ?? controls.value.closest('.phase-step');
-    field?.classList.toggle('is-off', value === 0);
     controls['picked-value'].value = duration;
     const [minimum, maximum] = CONFIG_LIMITS[phase];
     controls.decrease.disabled = value === minimum;
@@ -302,6 +310,11 @@ export class DurationPicker {
     picker.style.setProperty('--picker-closed-top', `${anchor.top}px`);
     picker.showPopover();
     this.#position(phase, visibleViewport(this.#window));
+    const style = this.#window.getComputedStyle?.(picker);
+    controls.shellMotion = {
+      duration: parseCssMilliseconds(style?.transitionDuration?.split(',')[0] ?? '', EXPANSION_DURATION_MS),
+      easing: this.#reverseEasing(this.#cssList(style?.transitionTimingFunction)[0] ?? 'cubic-bezier(.16, 1, .3, 1)'),
+    };
     output.closest('.picker-center').focus({ preventScroll: true });
   }
 
@@ -317,6 +330,10 @@ export class DurationPicker {
     // Continue the existing reveal stage and timers. A fully open editor stays
     // fully open; switching during its first opening does not restart Rise.
     if (this.#revealSequence) this.#revealSequence.controls = controls;
+    controls.shellMotion = previous.shellMotion;
+    controls.stepMotion = previous.stepMotion;
+    controls.fadeDuration = previous.fadeDuration;
+    controls.revealPause = previous.revealPause;
     previous.picker.dataset.transferring = 'true';
     previous.picker.inert = true;
     previous.value.setAttribute('aria-expanded', 'false');
@@ -335,7 +352,7 @@ export class DurationPicker {
     const destination = picker.getBoundingClientRect();
     delete picker.dataset.transferInitializing;
 
-    const duration = this.#cssTime(this.#window.getComputedStyle?.(picker), '--picker-slide-duration', SLIDE_DURATION_MS);
+    const duration = readCssMilliseconds(this.#window.getComputedStyle?.(picker), '--picker-slide-duration', SLIDE_DURATION_MS);
     const animation = picker.animate?.([
       { left: `${origin.left}px`, top: `${origin.top}px`, width: `${origin.width}px`, height: `${origin.height}px` },
       { left: `${destination.left}px`, top: `${destination.top}px`, width: `${destination.width}px`, height: `${destination.height}px` },
@@ -364,9 +381,9 @@ export class DurationPicker {
     delete slide.controls.picker.dataset.transferring;
   }
 
-  #positionOpenPicker() {
+  #positionOpenPicker({ layoutChanged = false } = {}) {
     const bounds = visibleViewport(this.#window);
-    if (Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
+    if (!layoutChanged && Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
     this.#finishSlide();
     for (const controls of this.#closing.keys()) this.#finishImmediately(controls);
     const entry = Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'));
@@ -403,6 +420,14 @@ export class DurationPicker {
   #revealButtons(controls) {
     const { picker } = controls;
     const bounds = picker.getBoundingClientRect();
+    const center = controls['picked-value'].closest('.picker-center').getBoundingClientRect();
+    const centerTop = `${center.top - bounds.top}px`, centerBottom = `${center.bottom - bounds.top}px`;
+    if (controls.centerTop !== centerTop || controls.centerBottom !== centerBottom) {
+      controls.centerTop = centerTop;
+      controls.centerBottom = centerBottom;
+      picker.style.setProperty('--picker-center-top', centerTop);
+      picker.style.setProperty('--picker-center-bottom', centerBottom);
+    }
     const top = bounds.top + picker.clientTop;
     const bottom = top + picker.clientHeight;
     const moving = picker.getAnimations?.().some(animation => animation.transitionProperty === 'height'
@@ -418,8 +443,17 @@ export class DurationPicker {
         // Let the fully expanded box rest before the fine pair fades in, then
         // reveal the outer whole-second pair after that fade has completed.
         const style = this.#window.getComputedStyle?.(picker);
-        sequence.fadeDuration = this.#cssTime(style, '--picker-step-fade-duration', STEP_REVEAL_DELAY_MS);
-        const pause = this.#cssTime(style, '--picker-reveal-pause', STEP_REVEAL_PAUSE_MS);
+        sequence.fadeDuration = readCssMilliseconds(style, '--picker-step-fade-duration', STEP_REVEAL_DELAY_MS);
+        const pause = readCssMilliseconds(style, '--picker-reveal-pause', STEP_REVEAL_PAUSE_MS);
+        controls.revealPause = pause;
+        controls.fadeDuration = sequence.fadeDuration;
+        controls.stepMotion = ['increase', 'fine-increase', 'fine-decrease', 'decrease'].map((suffix, index) => {
+          const stepStyle = this.#window.getComputedStyle?.(controls[suffix]);
+          const easings = this.#cssList(stepStyle?.transitionTimingFunction);
+          return { transform: stepStyle?.transform ?? `translateY(${index < 2 ? 12 : -12}px)`,
+            opacityEasing: this.#reverseEasing(easings[0] ?? 'ease'),
+            transformEasing: this.#reverseEasing(easings.at(-1) ?? 'cubic-bezier(.16, 1, .3, 1)') };
+        });
         sequence.stage = 1;
         sequence.timer = this.#window.setTimeout(() => {
           if (this.#revealSequence !== sequence) return;
@@ -460,11 +494,29 @@ export class DurationPicker {
 
   #prepareClose(controls) {
     if (this.#closing.has(controls)) return;
+    const { picker } = controls;
+    const coarse = [controls.increase, controls.decrease].some(button => button.dataset.revealed === 'true');
+    const fine = [controls['fine-increase'], controls['fine-decrease']].some(button => button.dataset.revealed === 'true');
+    const fade = controls.fadeDuration ?? STEP_REVEAL_DELAY_MS;
+    const pause = coarse || fine ? controls.revealPause ?? STEP_REVEAL_PAUSE_MS : 0;
+    const coarseDuration = coarse ? fade : 0, fineDuration = fine ? fade : 0;
+    const collapseDelay = coarseDuration + fineDuration + pause;
+    const duration = controls.shellMotion?.duration ?? EXPANSION_DURATION_MS;
+    picker.style.setProperty('--picker-close-coarse-duration', `${coarseDuration}ms`);
+    picker.style.setProperty('--picker-close-fine-duration', `${fineDuration}ms`);
+    picker.style.setProperty('--picker-close-collapse-delay', `${collapseDelay}ms`);
+    picker.style.setProperty('--picker-close-collapse-duration', `${duration}ms`);
+    picker.style.setProperty('--picker-close-collapse-easing', controls.shellMotion?.easing ?? 'cubic-bezier(.7, 0, .84, 0)');
+    picker.style.setProperty('--picker-close-total-duration', `${collapseDelay + duration}ms`);
     this.#closing.set(controls, {});
-    controls.picker.dataset.closing = 'true';
-    controls.picker.inert = true;
+    picker.dataset.closing = 'true';
+    picker.inert = true;
     controls.value.setAttribute('aria-expanded', 'false');
-    for (const button of [controls.increase, controls['fine-increase'], controls['fine-decrease'], controls.decrease]) {
+    for (const [index, button] of [controls.increase, controls['fine-increase'], controls['fine-decrease'], controls.decrease].entries()) {
+      const motion = controls.stepMotion?.[index];
+      button.style.setProperty('--picker-close-transform', motion?.transform ?? `translateY(${index < 2 ? 12 : -12}px)`);
+      button.style.setProperty('--picker-close-opacity-easing', motion?.opacityEasing ?? 'cubic-bezier(.75, 0, .75, .9)');
+      button.style.setProperty('--picker-close-transform-easing', motion?.transformEasing ?? 'cubic-bezier(.7, 0, .84, 0)');
       button.dataset.folding = String(button.dataset.revealed === 'true');
       button.inert = true;
     }
@@ -495,11 +547,16 @@ export class DurationPicker {
     this.#finishClosing(controls);
   }
 
-  #cssTime(style, property, fallback) {
-    const value = style?.getPropertyValue(property).trim() ?? '';
-    const match = /^(\d+(?:\.\d+)?|\.\d+)(ms|s)$/i.exec(value);
-    if (!match) return fallback;
-    const milliseconds = Number(match[1]) * (match[2].toLowerCase() === 's' ? 1000 : 1);
-    return Number.isFinite(milliseconds) ? milliseconds : fallback;
+  #cssList(value = '') {
+    return value.match(/(?:[^(),]+|\([^)]*\))+/g)?.map(item => item.trim()) ?? [];
+  }
+
+  #reverseEasing(easing) {
+    const standard = { ease: [.25, .1, .25, 1], 'ease-in': [.42, 0, 1, 1],
+      'ease-out': [0, 0, .58, 1], 'ease-in-out': [.42, 0, .58, 1] };
+    const bezier = standard[easing] ?? /^cubic-bezier\(([^)]+)\)$/.exec(easing)?.[1].split(',').map(Number);
+    if (!bezier || bezier.length !== 4 || bezier.some(value => !Number.isFinite(value))) return 'linear';
+    return `cubic-bezier(${[1 - bezier[2], 1 - bezier[3], 1 - bezier[0], 1 - bezier[1]]
+      .map(value => Number(value.toFixed(6))).join(', ')})`;
   }
 }

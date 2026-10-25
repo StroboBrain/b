@@ -3,8 +3,12 @@ import { SessionDriver } from './session-driver.js';
 import { DEFAULT_PREFERENCES } from './preset-store.js';
 import { formatDuration, phaseLabel } from './phase-labels.js';
 import { setPhaseCaption } from './phase-caption.js';
+import { applyPhaseMotion } from './phase-motion.js';
+import { readCssMilliseconds } from './css-time.js';
 
 const FLASH_DURATION_MS = 1500;
+const PLAY_EXIT_MS = 800;
+const ANIMATION_DEMO_MS = 2000;
 // First pulse: 550ms. Rest: 150ms. Second, slower pulse: 800ms.
 const FLASH_OFFSETS = [0, 275 / 1500, 550 / 1500, 700 / 1500, 1100 / 1500, 1];
 
@@ -19,6 +23,8 @@ export class SettingsPreview {
   #caption;
   #count;
   #soundButton;
+  #playButton;
+  #now;
   #onToggleSound;
   #preferences = { ...DEFAULT_PREFERENCES };
   #enabled = false;
@@ -28,12 +34,14 @@ export class SettingsPreview {
   #audio = null;
   #pulse = null;
   #framePulse = null;
+  #pendingPulse = null;
   #listeners = [];
   #driver;
   #visualKey = '';
   #cycleTimer = null;
   #observer;
   #practice;
+  #animationDemo = null;
 
   constructor({ document, window, container, onToggleSound = () => {},
     now = () => (window.performance ?? globalThis.performance).now() } = {}) {
@@ -47,6 +55,7 @@ export class SettingsPreview {
     }
     this.#document = document;
     this.#window = window;
+    this.#now = now;
     this.#container = container;
     this.#practice = container.closest?.('#practice');
     this.#onToggleSound = onToggleSound;
@@ -56,6 +65,7 @@ export class SettingsPreview {
     this.#caption = container.querySelector('.phase-caption');
     this.#count = container.querySelector('.phase-count');
     this.#soundButton = container.querySelector('#preview-sound-button');
+    this.#playButton = container.querySelector('#session-button');
     if ([this.#visual, this.#heading, this.#track, this.#caption, this.#count, this.#soundButton].some(node => !node)) {
       throw new Error('The settings preview is missing its breathing controls.');
     }
@@ -63,12 +73,13 @@ export class SettingsPreview {
       setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
       onChange: snapshot => {
         if (!this.#enabled) return;
-        const cycleDuration = PHASES.reduce((total, phase) => total + this.#config[phase], 0) * 1000;
-        if (snapshot.status === 'running' && snapshot.sessionElapsedMs >= cycleDuration) this.#beginCycle();
+        const cycleDuration = PHASES.reduce((total, phase) => total + Math.round(this.#config[phase] * 1000), 0);
+        if (snapshot.status === 'running' && snapshot.sessionElapsedMs >= cycleDuration) this.#showReady();
         else this.#renderPreview(snapshot);
+        this.#syncPlayButton();
       } });
     if (this.#practice && typeof window.MutationObserver === 'function') {
-      this.#observer = new window.MutationObserver(() => this.#resumePreview());
+      this.#observer = new window.MutationObserver(() => this.#syncAvailability());
       this.#observer.observe(this.#practice, { attributes: true, attributeFilter: ['data-panel-motion'] });
     }
     this.#listen(this.#soundButton, 'click', () => { if (this.#canToggleSound()) this.#onToggleSound(); });
@@ -81,20 +92,20 @@ export class SettingsPreview {
       if (document.hidden) {
         this.#stopSound();
         this.#stopPulse();
-        this.#pausePreview();
+        this.#cancelPreview();
       }
-      else this.#resumePreview();
+      else this.#syncAvailability();
       this.#syncSoundButton();
     });
     this.#listen(window, 'pagehide', () => {
       this.#pageHidden = true;
       this.#stopSound();
       this.#stopPulse();
-      this.#pausePreview();
+      this.#cancelPreview();
     });
     this.#listen(window, 'pageshow', () => {
       this.#pageHidden = false;
-      this.#resumePreview();
+      this.#syncAvailability();
       this.#syncSoundButton();
     });
     this.#container.dataset.preview = 'false';
@@ -114,15 +125,12 @@ export class SettingsPreview {
     data.showText = String(preferences.showBreathText);
     data.showTime = String(preferences.showBreathNumbers);
     data.showTimings = String(preferences.showPhaseTimings);
-    data.fadeButtons = 'true';
     data.soundCue = String(preferences.soundCue);
     if (this.#enabled) {
       if (changed) {
-        this.#clearCycleTimer();
-        this.#driver.stop();
-        this.#resumePreview();
+        this.#showReady();
       }
-      else this.#renderPreview(this.#driver.snapshot);
+      else this.#renderPreview(this.#animationDemo ? this.#demoSnapshot() : this.#driver.snapshot);
     }
     if (!preferences.soundCue) this.#stopSound();
     this.#syncSoundButton();
@@ -135,19 +143,8 @@ export class SettingsPreview {
     const key = `${snapshot.status}:${snapshot.phaseStartedAtMs}:${phase}`;
     if (key !== this.#visualKey) {
       this.#visualKey = key;
-      this.#visual.dataset.state = snapshot.status;
-      this.#visual.dataset.phase = phase;
-      for (const node of [this.#visual, this.#container]) {
-        node.style.setProperty('--phase-duration', `${snapshot.phaseDurationMs}ms`);
-        node.style.setProperty('--phase-delay', `${-snapshot.phaseElapsedMs}ms`);
-      }
-      const orb = this.#visual.querySelector('.breathing-orb');
-      const fill = this.#visual.querySelector('.hold-fill');
-      for (const node of [orb, fill, fill.parentElement]) node.style.animationName = 'none';
-      this.#track.style.setProperty('--timing-animation-name', 'none');
-      void this.#visual.offsetWidth;
-      for (const node of [orb, fill, fill.parentElement]) node.style.animationName = '';
-      this.#track.style.setProperty('--timing-animation-name', 'hold-fill');
+      applyPhaseMotion({ visual: this.#visual, stage: this.#container, track: this.#track,
+        orb: this.#visual.querySelector('.breathing-orb'), fill: this.#visual.querySelector('.hold-fill') }, snapshot);
       setPhaseCaption(this.#caption, phaseLabel(phase), Math.min(420, snapshot.phaseDurationMs * .6 || 420));
     }
     this.#count.textContent = snapshot.status === 'idle' ? String(this.#config.inhale)
@@ -156,7 +153,8 @@ export class SettingsPreview {
     for (const step of this.#track.children) {
       step.querySelector('.phase-time').textContent = formatDuration(this.#config[step.dataset.phase]);
       step.classList.toggle('is-skipped', this.#config[step.dataset.phase] === 0);
-      if (snapshot.status !== 'idle' && step.dataset.phase === phase) step.setAttribute('aria-current', 'step');
+      if (snapshot.status !== 'idle' && this.#container.dataset.previewStep !== 'animation'
+        && step.dataset.phase === phase) step.setAttribute('aria-current', 'step');
       else step.removeAttribute('aria-current');
     }
   }
@@ -167,9 +165,10 @@ export class SettingsPreview {
     this.#container.dataset.preview = String(enabled);
     if (this.#enabled === enabled) return;
     this.#enabled = enabled;
-    if (enabled) this.#resumePreview();
+    if (enabled) { this.#showReady(); this.#syncPlayButton(); }
     if (!enabled) {
       this.#clearCycleTimer();
+      this.#animationDemo = null;
       this.#stopSound();
       this.#stopPulse();
       this.#driver.stop();
@@ -180,11 +179,20 @@ export class SettingsPreview {
     this.#syncSoundButton();
   }
 
-  #resumePreview() {
-    if (!this.#enabled || this.#disposed || this.#pageHidden || this.#document.hidden || this.#practice?.dataset.panelMotion) return;
+  #syncAvailability() {
+    if (!this.#available()) return;
     delete this.#container.dataset.previewPaused;
-    if (this.#driver.snapshot.status === 'paused') this.#driver.resume();
-    else if (this.#driver.snapshot.status === 'idle' && this.#cycleTimer === null) this.#beginCycle();
+    this.#syncPlayButton();
+  }
+
+  #available() {
+    return this.#enabled && !this.#disposed && !this.#pageHidden && !this.#document.hidden
+      && !this.#practice?.dataset.panelMotion;
+  }
+
+  #syncPlayButton() {
+    if (this.#enabled && this.#playButton) this.#playButton.disabled = !this.#available()
+      || !['ready', 'animation'].includes(this.#container.dataset.previewStep);
   }
 
   #clearCycleTimer() {
@@ -192,35 +200,82 @@ export class SettingsPreview {
     this.#cycleTimer = null;
   }
 
-  #pausePreview() {
+  #cancelPreview() {
     this.#clearCycleTimer();
     if (!this.#enabled) return;
+    this.#showReady();
     this.#container.dataset.previewPaused = 'true';
-    if (this.#driver.snapshot.status === 'running') this.#driver.pause();
+    this.#syncPlayButton();
   }
 
-  #beginCycle() {
+  #showReady() {
     this.#clearCycleTimer();
+    this.#animationDemo = null;
     this.#container.dataset.previewStep = 'ready';
     this.#driver.stop();
-    if (!this.#enabled || this.#pageHidden || this.#document.hidden || this.#practice?.dataset.panelMotion) return;
+    this.#syncPlayButton();
+  }
+
+  /** Explicitly demonstrate one selected cycle without starting a real session. */
+  play() {
+    if (!this.#available() || !['ready', 'animation'].includes(this.#container.dataset.previewStep)) return false;
+    this.#clearCycleTimer();
+    this.#animationDemo = null;
+    this.#container.dataset.previewStep = 'starting';
+    this.#driver.stop();
+    this.pulse();
+    this.#syncPlayButton();
     this.#cycleTimer = this.#window.setTimeout(() => {
       this.#cycleTimer = null;
-      if (!this.#enabled || this.#pageHidden || this.#document.hidden) return;
-      this.#container.dataset.previewStep = 'starting';
-      this.#cycleTimer = this.#window.setTimeout(() => {
-        this.#cycleTimer = null;
-        if (!this.#enabled || this.#pageHidden || this.#document.hidden) return;
-        this.#container.dataset.previewStep = 'breathing';
-        this.#driver.start(this.#config);
-      }, 500);
-    }, 500);
+      if (!this.#available()) { this.#showReady(); return; }
+      this.#container.dataset.previewStep = 'breathing';
+      this.#driver.start(this.#config);
+    }, readCssMilliseconds(this.#window.getComputedStyle?.(this.#container), '--start-fold-duration', PLAY_EXIT_MS));
+    return true;
+  }
+
+  #demoSnapshot() {
+    const elapsed = Math.min(ANIMATION_DEMO_MS, this.#now() - this.#animationDemo.startedAt);
+    return { status: 'running', phase: 'holdIn', phaseStartedAtMs: this.#animationDemo.startedAt,
+      phaseDurationMs: ANIMATION_DEMO_MS, phaseElapsedMs: elapsed, phaseRemainingMs: ANIMATION_DEMO_MS - elapsed };
+  }
+
+  /** Replay the selected Animation without starting the breathing rhythm. */
+  previewAnimation() {
+    if (!this.#available() || !['ready', 'animation'].includes(this.#container.dataset.previewStep)) return false;
+    this.#demoAnimation();
+    return true;
+  }
+
+  #demoAnimation() {
+    this.#clearCycleTimer();
+    this.#animationDemo = { startedAt: this.#now() };
+    this.#container.dataset.previewStep = 'animation';
+    this.#visualKey = '';
+    this.#renderPreview(this.#demoSnapshot());
+    this.#syncPlayButton();
+    this.#cycleTimer = this.#window.setTimeout(() => {
+      this.#cycleTimer = null;
+      this.#showReady();
+    }, ANIMATION_DEMO_MS);
   }
 
   /** Two complete pulses per timing-card press; subsequent presses wait for completion. */
   pulse() {
     if (this.#disposed || !this.#enabled || this.#pageHidden || this.#document.hidden
-      || this.#pulse || this.#framePulse || typeof this.#heading.animate !== 'function') return false;
+      || this.#pulse || this.#framePulse || this.#pendingPulse || typeof this.#heading.animate !== 'function') return false;
+    const frame = this.#container.querySelector('#preview-frame');
+    const arrival = frame?.getAnimations?.().find(animation => animation.animationName === 'preview-heading-arrive'
+      && animation.playState !== 'finished');
+    if (arrival) {
+      const pending = this.#pendingPulse = {};
+      Promise.resolve(arrival.finished).then(() => {
+        if (this.#pendingPulse !== pending) return;
+        this.#pendingPulse = null;
+        this.pulse();
+      }, () => { if (this.#pendingPulse === pending) this.#pendingPulse = null; });
+      return true;
+    }
     const reducedMotion = this.#window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const rest = reducedMotion ? { opacity: 1 } : { transform: 'scale(1)', opacity: 1 };
     const peak = reducedMotion ? { opacity: .45 } : { transform: 'scale(.94)', opacity: .45 };
@@ -228,7 +283,6 @@ export class SettingsPreview {
       .map((frame, index) => ({ ...frame, offset: FLASH_OFFSETS[index], easing: 'ease-in-out' }));
     const pulse = this.#pulse = this.#heading.animate(frames, { duration: FLASH_DURATION_MS, easing: 'linear' });
     pulse.onfinish = () => { if (this.#pulse === pulse) this.#pulse = null; };
-    const frame = this.#container.querySelector('#preview-frame');
     if (typeof frame?.animate === 'function') {
       const normal = { borderColor: '#333', boxShadow: '0 0 0 0 transparent' };
       const bright = { borderColor: '#eee', boxShadow: '0 0 0 1px #aaa' };
@@ -241,6 +295,7 @@ export class SettingsPreview {
   }
 
   #stopPulse() {
+    this.#pendingPulse = null;
     for (const animation of [this.#pulse, this.#framePulse]) {
       if (!animation) continue;
       animation.onfinish = null;
@@ -255,6 +310,7 @@ export class SettingsPreview {
     this.#disposed = true;
     this.#enabled = false;
     this.#clearCycleTimer();
+    this.#animationDemo = null;
     this.#observer?.disconnect();
     this.#driver.stop();
     this.#stopSound();

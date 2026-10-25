@@ -36,7 +36,6 @@
   --orb-shade: #0000002e;
   --border-selected: #c5c5c5;
   --surface-popover: #141414;
-  --knob-border: #c4c4c4;
   --shadow: #0008;
   --shadow-deep: #000b;
   --border-notice: #888;
@@ -44,7 +43,6 @@
   --text-caption: 14px;
   --text-label: 16px;
   --text-body: 17px;
-  --text-input: 18px;
   --box-gap: 8px;
 }
 
@@ -154,6 +152,7 @@ button:disabled, .preset-tile:has(:disabled) {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--box-gap);
+  overflow-x: clip;
 }
 .practice-card {
   --panel-slide-duration: 1500ms;
@@ -162,9 +161,9 @@ button:disabled, .preset-tile:has(:disabled) {
   --panel-swipe-distance: 48px;
   --hold-choice-size: 80px;
   --hold-sample-size: 36px;
-  --pattern-font-size: clamp(12px, 3.8cqw, 17px);
+  --pattern-font-size: clamp(13px, 4cqw, 18px);
   --pattern-timing-font-size: clamp(11px, 3.3cqw, 15px);
-  --start-fold-duration: 500ms;
+  --start-fold-duration: 800ms;
   min-width: 0;
   min-height: calc(100dvh - 8px);
   background: var(--surface);
@@ -210,7 +209,6 @@ button:disabled, .preset-tile:has(:disabled) {
   --panel-footer-space: calc(44px + var(--panel-install-gap));
 }
 /* Clip the full-width slides within the app. */
-.practice-layout { overflow-x: clip; }
 .practice-card[data-panel-motion] .control-frame { overflow: clip; }
 [data-panel-slide] {
   animation-duration: var(--panel-slide-duration);
@@ -244,7 +242,6 @@ button:disabled, .preset-tile:has(:disabled) {
   --speaker-offset-y: -5px;
   --preview-fade-duration: 1s;
   --preview-fade-delay: .1s;
-  --preview-fade-easing: ease;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--visual-size) 48px auto;
@@ -259,7 +256,6 @@ button:disabled, .preset-tile:has(:disabled) {
   width: var(--visual-size);
   margin: 0;
 }
-#session-button { grid-area: 2 / 1; }
 .exercise-stage > .phase-timings {
   grid-area: 3 / 1;
   width: 100%;
@@ -397,9 +393,7 @@ button:disabled, .preset-tile:has(:disabled) {
 }
 .settings-panel .hold-sample { width: min(var(--hold-sample-size), calc(var(--hold-render-size) - 32px)); }
 .practice-card :is(.phase-timings, .display-options, .hold-options) { padding: 6px; }
-.display-options > legend, .hold-options > legend { font-size: 16px; }
 .install-footer > .button { min-height: 44px; padding-block: 6px; }
-#session-button { min-height: 44px; padding-block: 6px; }
 /* Breathing animation and hold effects */
 .breathing-visual {
   --orb-size: calc(100% * var(--orb-ratio));
@@ -626,16 +620,6 @@ button:disabled, .preset-tile:has(:disabled) {
 .phase-step.is-skipped {
   color: var(--guide);
 }
-.phase-dot {
-  display: none;
-  height: 4px;
-  width: 4px;
-  border-radius: 50%;
-  border: 1px solid currentColor;
-}
-.phase-step[aria-current="step"] .phase-dot {
-  background: currentColor;
-}
 /* Session buttons */
 .button {
   display: inline-flex;
@@ -658,10 +642,12 @@ button:disabled, .preset-tile:has(:disabled) {
   background: var(--paper-hover);
 }
 #session-button {
+  grid-area: 2 / 1;
   position: relative;
   width: min(336px, calc(var(--visual-size) * 1.02));
   max-width: 336px;
   min-height: 48px;
+  padding-block: 6px;
   max-height: 52px;
   align-self: center;
   margin-top: 0;
@@ -757,26 +743,15 @@ button:disabled, .preset-tile:has(:disabled) {
 .toggle-label-off { opacity: 0; transform: translateX(-12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-on { opacity: 0; transform: translateX(12px); }
 .animated-toggle:has(> input:not(:checked)) .toggle-label-off { opacity: 1; transform: translateX(0); }
-.prefix-toggle > .toggle-label,
-.button-toggle > .toggle-label {
+.prefix-toggle > .toggle-label {
   grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 0;
-}
-/* The changing button prefix starts where the text and time words start. */
-.button-toggle > .toggle-label {
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  container-type: inline-size;
-}
-.button-toggle > .toggle-label::before {
-  content: "no ";
-  grid-area: 1 / 1;
-  white-space: pre;
-  visibility: hidden;
 }
 .prefix-toggle .toggle-label-off {
   grid-area: 1 / 1;
   white-space: pre;
   transform: translateX(-100%);
+  transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .45s ease;
 }
 .prefix-toggle .toggle-label-on,
 .prefix-toggle:has(> input:not(:checked)) .toggle-label-on {
@@ -784,32 +759,6 @@ button:disabled, .preset-tile:has(:disabled) {
   opacity: 1;
   transform: none;
   overflow-wrap: normal;
-}
-.button-toggle .toggle-label-prefixes {
-  display: grid;
-  grid-area: 1 / 2;
-  overflow: visible;
-  padding-block: 0;
-}
-.toggle-label-prefixes > span {
-  grid-area: 1 / 1;
-  justify-self: end;
-  white-space: pre;
-  padding-block: 1px;
-  transition: transform .55s cubic-bezier(.22, 1, .36, 1), opacity .42s ease;
-}
-/* Travel across the reserved prefix column and leave the entire label frame. */
-.button-toggle .toggle-label-off { transform: translateX(calc(-100cqw - 1em)); }
-.button-toggle:has(> input:checked) .toggle-label-on { transition-delay: .16s; }
-.button-toggle:has(> input:not(:checked)) .toggle-label-on { transform: translateX(calc(-100cqw - 1em)); }
-.button-toggle .toggle-label-word {
-  grid-area: 1 / 3;
-  white-space: nowrap;
-}
-.hold-toggle {
-  color: var(--text-control);
-  gap: 8px;
-  padding: 8px 12px;
 }
 .display-toggle:has(:disabled) {
   cursor: default;
@@ -997,6 +946,7 @@ fieldset {
   transform: translateY(-50%);
   max-width: calc(100% - 8px);
   padding: 1px 3px;
+  border-radius: 5px 5px 0 0;
   background: inherit;
   overflow: visible;
   white-space: normal;
@@ -1020,12 +970,10 @@ fieldset {
 .phase-timings {
   margin-top: var(--box-gap);
 }
-.label-detail {
-  font-size: var(--text-caption);
-  color: var(--muted);
-}
 /* Duration picker */
 .duration-button {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1043,11 +991,11 @@ fieldset {
   font-size: var(--text-body);
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  transition: background-color .18s, border-color .18s;
+  transition: background-color .3s ease, border-color .18s ease;
 }
+.duration-button > * { position: relative; z-index: 1; }
 .duration-button:disabled { opacity: 1; }
 .phase-track > .phase-step > .duration-button { width: 100%; }
-.duration-button { transition: background-color .3s ease, border-color .18s ease; }
 .phase-time { color: var(--text-control); }
 .phase-step[aria-current="step"] .phase-time { color: inherit; }
 .duration-button:hover:not(:disabled), .duration-button[aria-expanded="true"] {
@@ -1070,7 +1018,7 @@ fieldset {
 /* A timing cell opens vertically, keeping its readout at the center. */
 .duration-picker {
   --picker-step-fade-duration: 160ms;
-  --picker-reveal-pause: 240ms;
+  --picker-reveal-pause: 120ms;
   --picker-fold-duration: 500ms;
   position: fixed;
   inset: auto;
@@ -1163,11 +1111,9 @@ fieldset {
 .duration-picker:popover-open .duration-step { transform: translateY(0) rotateX(0); }
 .duration-picker[data-closing="true"] .duration-step {
   pointer-events: none;
-  transition: transform var(--picker-fold-duration) cubic-bezier(.4, 0, .2, 1);
 }
 .duration-picker[data-closing="true"] .duration-step[data-folding="true"] {
   visibility: visible;
-  opacity: var(--picker-step-opacity, 1);
 }
 .duration-step:disabled { --picker-step-opacity: .4; }
 .duration-step[data-revealed="false"] {
@@ -1252,11 +1198,11 @@ fieldset {
   border: 1px solid var(--line);
   border-radius: 6px;
   pointer-events: none;
-  animation: preview-heading-arrive .75s cubic-bezier(.22, 1, .36, 1) both;
+  animation: preview-heading-arrive .75s cubic-bezier(.22, 1, .36, 1) calc(var(--panel-slide-duration) / 2) both;
 }
 .preview-heading { padding: 0 6px; background: var(--surface); color: var(--text-control); font-size: clamp(24px, calc(var(--visual-size) * .22 + 8px), 40px); font-weight: 500; line-height: 1.1; }
 @keyframes preview-heading-arrive {
-  from { opacity: 0; transform: translateY(-16px); }
+  from { opacity: 0; transform: translateY(-96px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .preview-sound-button {
@@ -1274,7 +1220,8 @@ fieldset {
   padding: 7px;
   z-index: 3;
   opacity: var(--speaker-opacity);
-  animation: preview-sound-arrive .75s cubic-bezier(.22, 1, .36, 1) both;
+  transition: background-color .3s ease, border-color .3s ease, box-shadow .45s ease, color .3s ease;
+  animation: preview-sound-arrive .75s cubic-bezier(.22, 1, .36, 1) calc(var(--panel-slide-duration) / 2) both;
 }
 .preview-sound-button[aria-pressed="true"],
 .preview-sound-button[aria-pressed="true"]:is(:hover, :active) {
@@ -1291,26 +1238,26 @@ fieldset {
 .speaker-icon { width: 32px; height: 32px; }
 .exercise-stage:not([data-sound-cue="true"]) .speaker-waves,
 .exercise-stage[data-sound-cue="true"] .speaker-muted { display: none; }
-.exercise-stage[data-sound-playing="true"] .preview-sound-button { border-color: var(--paper); }
+.exercise-stage[data-sound-playing="true"] .preview-sound-button {
+  border-color: #f4f4f4;
+  background: #3a3a3a;
+  color: #f4f4f4;
+  box-shadow: 0 0 0 3px #b8b8b84d, 0 0 16px #b8b8b866;
+  transition-duration: 80ms;
+}
 .exercise-stage[data-preview="true"] #session-button {
-  cursor: default;
   transform: translateX(calc(100vw + 100%));
   visibility: hidden;
   animation: none;
 }
-.exercise-stage[data-preview="true"][data-preview-step="ready"] #session-button {
+.exercise-stage[data-preview="true"]:is([data-preview-step="ready"], [data-preview-step="animation"]) #session-button {
   transform: translateX(0);
   visibility: visible;
-  animation: preview-play-arrive .3s ease both;
 }
 .exercise-stage[data-preview="true"][data-preview-step="starting"] #session-button {
   animation: controls-exit-right var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1) both;
 }
 .exercise-stage[data-preview-paused="true"] #session-button { animation-play-state: paused; }
-@keyframes preview-play-arrive {
-  from { transform: translateX(calc(100vw + 100%)); }
-  to { transform: translateX(0); }
-}
 .exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields {
   pointer-events: none;
   animation: controls-exit-left var(--preview-fade-duration) ease var(--preview-fade-delay) both;
@@ -1328,25 +1275,18 @@ fieldset {
     gap: 4px;
     min-height: 46px;
     padding: 2px 3px;
-    font-size: 18px;
     text-align: left;
   }
   .display-toggle > span { white-space: nowrap; }
-  .display-controls > .display-toggle { --toggle-track-inset: 4px; padding: 1px 0; column-gap: 0; font-size: 17px; line-height: 1.2; }
+  .display-controls > .display-toggle { --toggle-track-inset: 4px; padding: 1px 0; column-gap: 0; line-height: 1.2; }
   .display-controls > .display-toggle:nth-child(even) > .toggle-label { padding-inline-start: 2px; }
-  .button-toggle > .toggle-label { grid-template-columns: max-content minmax(0, 1fr); }
-  .button-toggle .toggle-label-word { grid-area: 2 / 2; margin-top: -2px; }
 }
 /* Reserve space for settings, hold feedback and optional installation in both modes. */
-.practice-stage .phase-timings { padding: 6px; }
-.settings-panel .display-toggle { font-size: clamp(14px, 4.4cqw, 18px); }
-.settings-panel .display-controls > .button-toggle > .toggle-label { padding-inline-start: 0; }
 @media (max-height: 800px) {
   .practice-card { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
   .practice-card .preset-options { padding: 6px; }
   .display-controls { gap: 6px; }
   .preset-tiles { gap: 12px; }
-  .preset-tile { min-height: 48px; padding: 6px 8px; }
 }
 @media (min-height: 601px) and (max-height: 700px) {
   .practice-card { --hold-choice-size: 60px; --hold-sample-size: 28px; }
@@ -1376,8 +1316,6 @@ fieldset {
   .settings-content > :is(.display-options, .hold-options) { padding: 2px; }
   .settings-panel .display-toggle { min-height: 36px; padding: 2px 1px; font-size: 14px; line-height: 1.2; }
   .display-controls { gap: 4px; }
-  .settings-panel .button-toggle > .toggle-label { grid-template-columns: max-content max-content minmax(0, 1fr); }
-  .settings-panel .button-toggle .toggle-label-word { grid-area: 1 / 3; margin-top: 0; }
   .settings-panel .hold-choice { font-size: 13px; gap: 2px; padding: 2px; }
 }
 /* Short, wide screens use the available width instead of adding vertical scrolling. */
@@ -1449,14 +1387,10 @@ html:has(body.is-zen) {
 
 /* Selection feedback and compact action spacing. */
 #session-button .icon-play { border-top-width: 7px; border-bottom-width: 7px; border-left-width: 11px; }
-.preset-tile:not(:has(:checked)) { opacity: .5; }
 .preset-tile:has(:checked) :is(.preset-name, .preset-timing) { color: #f3f3f3; }
-.prefix-toggle .toggle-label-off { transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .45s ease; }
 #practice #exercise-stage :is(.phase-caption, .phase-count) { display: block; transition: opacity .45s ease, translate .5s cubic-bezier(.22,1,.36,1), visibility 0s; }
 #practice #exercise-stage[data-show-text="false"] .phase-caption,
 #practice #exercise-stage[data-show-time="false"] .phase-count { display: block; opacity: 0; visibility: hidden; translate: 0 7px; transition: opacity .45s ease, translate .5s ease, visibility 0s .45s; }
-.duration-button { position: relative; overflow: hidden; }
-.duration-button > * { position: relative; z-index: 1; }
 :where(#practice:not([data-state="idle"]), .exercise-stage[data-preview="true"]) .phase-step[aria-current] .duration-button::before { content: ""; position: absolute; inset: 0; background: var(--paper); opacity: calc(.14 * var(--timing-reveal)); pointer-events: none; animation: var(--timing-animation-name, hold-fill) var(--phase-duration) linear var(--phase-delay) both, timing-highlight-in min(300ms, calc(var(--phase-duration) * .4)) ease both; }
 .exercise-stage[data-animation="rise"] .phase-step[aria-current] .duration-button::before { clip-path: inset(calc((1 - var(--hold-progress)) * 100%) 0 0); }
 .exercise-stage[data-animation="sweep"] .phase-step[aria-current] .duration-button::before { background: conic-gradient(var(--paper) calc(var(--hold-progress) * 1turn), transparent 0turn); }
@@ -1476,6 +1410,6 @@ html:has(body.is-zen) {
   #practice[data-starting="true"] #session-button { animation: none; transform: translateX(calc(100vw + 100%)); visibility: hidden; }
   #practice[data-starting="true"]:has(#show-phase-timings:not(:checked)) #timing-fields { animation: none; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
   .exercise-stage[data-preview="true"] #session-button { animation: none !important; transform: translateX(calc(100vw + 100%)); visibility: hidden; }
-  .exercise-stage[data-preview="true"][data-preview-step="ready"] #session-button { transform: translateX(0); visibility: visible; }
+  .exercise-stage[data-preview="true"]:is([data-preview-step="ready"], [data-preview-step="animation"]) #session-button { transform: translateX(0); visibility: visible; }
   .exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields { animation: none !important; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
 }

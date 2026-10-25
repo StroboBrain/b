@@ -7,7 +7,8 @@ import { ZenNavigator } from './zen-navigator.js';
 import { PhaseCues } from './phase-cues.js';
 import { OfflineSupport } from './offline-support.js';
 import { DurationPicker } from './duration-picker.js';
-import { PresetTiles } from './preset-tiles.js';
+import { PresetTiles, patternName } from './preset-tiles.js';
+import { readCssMilliseconds } from './css-time.js';
 import { SessionView } from './session-view.js';
 import { SettingsPreview } from './settings-preview.js';
 import { InstallPrompt } from './install-prompt.js';
@@ -161,17 +162,17 @@ export class BreathingApp {
       ui[id].addEventListener('change', () => {
         const enabled = ui[id].checked;
         this.#setPreference(preference, enabled);
-        if (preference === 'showBreathText' && !this.#window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-          const label = ui[id].closest('.display-toggle')?.querySelector('.toggle-label');
-          for (const animation of label?.getAnimations?.() ?? []) animation.cancel();
-          label?.animate?.([{ opacity: 1 }, { opacity: 0, offset: .4 }, { opacity: 1 }],
-            { duration: 500, easing: 'ease-in-out' });
-        }
       });
     }
     ui['hold-choices'].addEventListener('change', ({ target }) => {
       if (HOLD_FEEDBACK_VARIANTS.includes(target.value)) {
         this.#setPreference('holdFeedback', target.value);
+        this.#preview.previewAnimation();
+      }
+    });
+    ui['hold-choices'].addEventListener('click', ({ target }) => {
+      if (target.matches('input[type="radio"]') && target.checked && target.value === this.#preferences.holdFeedback) {
+        this.#preview.previewAnimation();
       }
     });
     this.#document.addEventListener('keydown', (event) => {
@@ -239,7 +240,8 @@ export class BreathingApp {
       this.#syncSettings();
       this.#render(this.#session.snapshot);
     }
-    this.#elements['phase-announcement'].textContent = `${this.#editor.selected.name} selected.`;
+    const slotNumber = this.#presets.findIndex(preset => preset.id === id) + 1;
+    this.#elements['phase-announcement'].textContent = `${patternName(this.#config, slotNumber)} selected.`;
   }
 
   #syncSettings() {
@@ -328,7 +330,11 @@ export class BreathingApp {
   }
 
   #toggleSession() {
-    if (this.#panels.active === 'settings' || this.#pendingStart) return;
+    if (this.#panels.active === 'settings') {
+      this.#preview.play();
+      return;
+    }
+    if (this.#pendingStart) return;
     this.#durationPicker.close({ immediately: true });
     this.#presetTiles.cancelInteraction();
     const status = this.#status;
@@ -360,7 +366,7 @@ export class BreathingApp {
       else this.#session.start(pending.config);
       delete this.#elements.practice.dataset.starting;
       this.#wakeLock.acquire();
-    }, 500);
+    }, readCssMilliseconds(this.#window.getComputedStyle?.(this.#elements['exercise-stage']), '--start-fold-duration', 800));
   }
 
   #cancelPendingStart() {
@@ -382,7 +388,7 @@ export class BreathingApp {
     this.#elements['preview-sound-button'].hidden = !preview;
     this.#elements['preset-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
     this.#elements['timing-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
-    this.#elements['session-button'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status === 'running';
+    if (!preview) this.#elements['session-button'].disabled = Boolean(this.#pendingStart) || snapshot.status === 'running';
     this.#elements['session-button-icon'].className = 'icon-play';
     this.#elements['session-button-label'].textContent = this.#pendingStart ? 'starting' : preview ? 'preview' : snapshot.status === 'running'
       ? 'stop' : snapshot.status === 'paused' ? 'resume' : 'start';
