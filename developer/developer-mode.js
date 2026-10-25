@@ -9,7 +9,7 @@ const LAYOUTS = Object.freeze([
   { id: 'split', name: 'Split', description: 'Put the circle beside the controls on wider screens.' },
 ]);
 const EASINGS = Object.freeze({
-  gentle: 'cubic-bezier(.22, 1, .36, 1)',
+  gentle: 'cubic-bezier(.65, 0, .35, 1)',
   standard: 'ease-in-out',
   linear: 'linear',
 });
@@ -17,9 +17,11 @@ const NUMBERS = Object.freeze([
   { key: 'slideDuration', id: 'slide-duration', label: 'Slide duration', unit: 'ms', min: 600, max: 2000, step: 100, value: 1500, property: '--panel-slide-duration' },
   { key: 'travelGap', id: 'travel-gap', label: 'Panel travel gap', unit: 'px', min: 0, max: 48, step: 4, value: 28, property: '--panel-travel-gap' },
   { key: 'swipeDistance', id: 'swipe-distance', label: 'Swipe distance', unit: 'px', min: 32, max: 120, step: 8, value: 48, property: '--panel-swipe-distance' },
-  { key: 'previewFadeDuration', id: 'preview-fade-duration', label: 'Preview exit duration', unit: 'ms', min: 400, max: 1800, step: 100, value: 1000, property: '--preview-fade-duration', stage: true },
-  { key: 'previewFadeDelay', id: 'preview-fade-delay', label: 'Preview exit delay', unit: 'ms', min: 0, max: 500, step: 50, value: 100, property: '--preview-fade-delay', stage: true },
+  { key: 'previewFadeDuration', id: 'preview-fade-duration', label: 'Timings exit duration', unit: 'ms', min: 400, max: 1800, step: 100, value: 1000, property: '--preview-fade-duration', stage: true },
+  { key: 'previewFadeDelay', id: 'preview-fade-delay', label: 'Timings exit delay', unit: 'ms', min: 0, max: 500, step: 50, value: 100, property: '--preview-fade-delay', stage: true },
   { key: 'holdHeight', id: 'hold-height', label: 'Animation choice height', unit: 'px', min: 44, max: 112, step: 4, value: 80, property: '--hold-choice-size' },
+  { key: 'speakerOffsetX', id: 'speaker-offset-x', label: 'Horizontal offset', unit: 'px', min: -80, max: 80, step: 1, value: -5, property: '--speaker-offset-x', stage: true },
+  { key: 'speakerOffsetY', id: 'speaker-offset-y', label: 'Vertical offset', unit: 'px', min: -80, max: 80, step: 1, value: -5, property: '--speaker-offset-y', stage: true },
 ]);
 const DEFAULTS = Object.freeze({ version: 3, layout: 'auto', popup: 'rise', outlines: false,
   ...Object.fromEntries(NUMBERS.map(option => [option.key, option.value])), easing: 'gentle' });
@@ -273,6 +275,15 @@ export class DeveloperMode {
     });
     panel.append(fieldset, this.#layoutNote, outlines,
       this.#numberControl(NUMBERS.find(option => option.key === 'holdHeight')));
+    const speaker = this.#node('fieldset', { id: 'developer-speaker-position', class: 'developer-options developer-speaker-position' });
+    speaker.append(this.#node('legend', {}, 'Speaker position'),
+      this.#node('p', { id: 'developer-speaker-position-note', class: 'developer-note' },
+        'Relative to the circle. Negative moves left or up.'));
+    for (const option of NUMBERS.filter(option => ['speakerOffsetX', 'speakerOffsetY'].includes(option.key))) {
+      speaker.append(this.#numberControl(option));
+      this.#numberInputs.get(option.key).setAttribute('aria-describedby', 'developer-speaker-position-note');
+    }
+    panel.append(speaker);
   }
 
   #buildSlider() {
@@ -295,8 +306,10 @@ export class DeveloperMode {
     easing.append(this.#easingInput);
     slides.append(easing);
     const preview = this.#node('fieldset', { class: 'developer-options developer-numbers' });
-    preview.append(this.#node('legend', {}, 'Preview controls exit'));
-    for (const option of NUMBERS.filter(option => option.stage)) preview.append(this.#numberControl(option));
+    preview.append(this.#node('legend', {}, 'Hidden timings exit'));
+    for (const option of NUMBERS.filter(option => ['previewFadeDuration', 'previewFadeDelay'].includes(option.key))) {
+      preview.append(this.#numberControl(option));
+    }
     panel.append(slides, preview);
   }
 
@@ -403,7 +416,15 @@ export class DeveloperMode {
   #positionLauncher() {
     if (!this.#launcher) return;
     const circle = this.#document.getElementById('breathing-orb') ?? this.#stage;
-    const box = circle.getBoundingClientRect();
+    let box = circle.getBoundingClientRect();
+    const visual = this.#document.getElementById('breathing-visual');
+    if (visual && typeof this.#window.getComputedStyle === 'function') {
+      const style = this.#window.getComputedStyle(visual), bounds = visual.getBoundingClientRect();
+      const size = bounds.width * parseFloat(style.getPropertyValue('--orb-ratio'))
+        * parseFloat(style.getPropertyValue('--breath-small'));
+      if (Number.isFinite(size) && size > 0) box = { width: size, height: size,
+        left: bounds.left + (bounds.width - size) / 2, top: bounds.top + (bounds.height - size) / 2 };
+    }
     const fontSize = Math.max(9, Math.min(14, box.width * .1));
     // Keep the overlay independent of app markup while anchoring its glyph inside the circle.
     // Extend the touch target away from the center so swipes still begin on tiny circles.

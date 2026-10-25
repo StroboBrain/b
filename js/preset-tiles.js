@@ -13,6 +13,7 @@ export class PresetTiles {
   #onEdit;
   #window;
   #tiles = new Map();
+  #slotNumbers = new Map();
   #listeners = [];
   #signature;
   #pressed = null;
@@ -89,12 +90,14 @@ export class PresetTiles {
     const next = new Map();
     for (const preset of presets) {
       const tile = this.#tiles.get(preset.id) ?? this.#createTile(preset.id);
+      if (!this.#slotNumbers.has(preset.id)) this.#slotNumbers.set(preset.id, this.#slotNumbers.size + 1);
+      const name = this.#patternName(preset.config, this.#slotNumbers.get(preset.id));
       const input = tile.querySelector('input');
-      tile.querySelector('.preset-name').textContent = preset.name;
+      tile.querySelector('.preset-name').textContent = name;
       tile.querySelector('.preset-timing').textContent = PHASES.map((phase) => preset.config[phase]).join(' · ');
       const description = PHASES.map((phase) => preset.config[phase] === 0
         ? `no ${phaseDescription(phase)}` : `${phaseDescription(phase)} ${spokenDuration(preset.config[phase])}`).join(', ');
-      input.setAttribute('aria-label', `${preset.name}: ${description}`);
+      input.setAttribute('aria-label', `${name}: ${description}`);
       next.set(preset.id, tile);
     }
     this.#tiles = next;
@@ -119,6 +122,16 @@ export class PresetTiles {
   #listen(type, listener, target = this.#container) {
     target.addEventListener(type, listener);
     this.#listeners.push(() => target.removeEventListener(type, listener));
+  }
+
+  /** Describe the current rhythm without changing the permanent preset identity. */
+  #patternName(config, slotNumber) {
+    const { inhale, holdIn, exhale, holdOut } = Object.fromEntries(
+      PHASES.map(phase => [phase, Math.round(config[phase] * 10)]));
+    if (inhale === exhale) return 'equal';
+    if (holdOut === 0 && inhale * 7 === holdIn * 4 && inhale * 8 === exhale * 4) return '4–7–8';
+    if (holdIn === 0 && holdOut === 0 && exhale > inhale) return 'slow';
+    return `custom ${slotNumber}`;
   }
 
   #tileFor(target) {

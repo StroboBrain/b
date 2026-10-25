@@ -1,6 +1,16 @@
 /* Approved Rise timing-popup motion for the shared app and release builds. */
 .duration-picker {
   --picker-step-fade-duration: 260ms;
+  --picker-slide-duration: 500ms;
+  background: rgb(20 20 20 / .28);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .2);
+  backdrop-filter: none;
+}
+.duration-picker::backdrop { background: transparent; }
+.duration-picker .picker-center,
+.duration-picker .picker-center:hover:not(:disabled),
+.duration-picker .picker-center:active:not(:disabled) {
+  background: transparent;
 }
 .duration-picker:popover-open:not([data-closing="true"]) {
   transition-duration: 760ms;
@@ -17,4 +27,23 @@
 }
 .duration-picker:popover-open:not([data-closing="true"]) .duration-step[data-revealed="false"] {
   transform: translateY(var(--rise-offset));
+}
+
+/* A different timing moves the open column, without folding its controls. */
+.duration-picker[data-transferring="true"],
+.duration-picker[data-transfer-initializing="true"] .duration-step {
+  transition: none !important;
+}
+.duration-picker[data-transferring="true"] .picker-center {
+  border-color: transparent;
+  outline-color: transparent;
+}
+.duration-picker[data-transferring="true"] .picker-center > * {
+  opacity: 0;
+}
+@starting-style {
+  .duration-picker[data-transferring="true"]:popover-open {
+    height: var(--picker-open-height, 256px) !important;
+    top: var(--picker-open-top, 0px) !important;
+  }
 }

@@ -1,4 +1,5 @@
 import { phaseLabel, spokenDuration } from './phase-labels.js';
+import { setPhaseCaption } from './phase-caption.js';
 
 /** Renders engine snapshots; CSS owns motion and the layout of each state. */
 export class SessionView {
@@ -12,6 +13,8 @@ export class SessionView {
     }
     this.#elements = elements;
   }
+
+  invalidate() { this.#lastVisualKey = ''; }
 
   render(snapshot, { inhale }) {
     const ui = this.#elements;
@@ -27,7 +30,8 @@ export class SessionView {
       ui['session-button'].disabled = false;
       ui['session-button-label'].textContent = running ? 'stop' : status === 'paused' ? 'resume' : 'start';
       ui['session-button-icon'].className = 'icon-play';
-      ui['phase-caption'].textContent = status === 'paused' ? `${label} · paused` : label;
+      setPhaseCaption(ui['phase-caption'], status === 'paused' ? `${label} · paused` : label,
+        Math.min(420, snapshot.phaseDurationMs * .6 || 420));
 
       const visual = ui['breathing-visual'];
       visual.dataset.state = status;

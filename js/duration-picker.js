@@ -7,6 +7,7 @@ const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
 const STEP_REVEAL_DELAY_MS = 160;
 const STEP_REVEAL_PAUSE_MS = 240;
+const SLIDE_DURATION_MS = 500;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls; every accepted
@@ -28,6 +29,8 @@ export class DurationPicker {
   #openingSource = null;
   #disposed = false;
   #closing = new Map();
+  #transferred = new WeakSet();
+  #slide = null;
 
   constructor({ document, window, container, onChange, canChange = () => true,
     canActivateOutside = () => false } = {}) {
@@ -110,6 +113,8 @@ export class DurationPicker {
       this.#listen(controls.picker, 'toggle', () => {
         const open = controls.picker.matches(':popover-open');
         controls.value.setAttribute('aria-expanded', String(open));
+        // A transfer replaces the native dialog without running its exit.
+        if (this.#transferred.delete(controls.picker) && !open) return;
         if (!open) {
           this.#prepareClose(controls);
           this.#finishPress();
@@ -151,6 +156,7 @@ export class DurationPicker {
 
   close({ immediately = false } = {}) {
     this.#openingSource = null;
+    this.#finishSlide();
     this.#finishPress();
     const controls = this.#revealSequence?.controls;
     this.#cancelReveal(controls);
@@ -280,6 +286,11 @@ export class DurationPicker {
       this.close();
       return;
     }
+    const previous = Object.values(this.#controls).find(({ picker: candidate }) => candidate.matches(':popover-open'));
+    if (previous) {
+      this.#transfer(previous, phase);
+      return;
+    }
     this.close();
     this.#finishClosing(controls);
     picker.inert = false;
@@ -294,9 +305,69 @@ export class DurationPicker {
     output.closest('.picker-center').focus({ preventScroll: true });
   }
 
+  #transfer(previous, phase) {
+    const controls = this.#controls[phase];
+    const { picker, value: trigger, 'picked-value': output } = controls;
+    const origin = previous.picker.getBoundingClientRect();
+    this.#openingSource = null;
+    this.#finishPress();
+    this.#finishSlide({ cancel: true });
+    this.#finishImmediately(controls);
+
+    // Continue the existing reveal stage and timers. A fully open editor stays
+    // fully open; switching during its first opening does not restart Rise.
+    if (this.#revealSequence) this.#revealSequence.controls = controls;
+    previous.picker.dataset.transferring = 'true';
+    previous.picker.inert = true;
+    previous.value.setAttribute('aria-expanded', 'false');
+    this.#transferred.add(previous.picker);
+    previous.picker.hidePopover();
+    previous.picker.getBoundingClientRect();
+    delete previous.picker.dataset.transferring;
+
+    picker.dataset.transferring = 'true';
+    picker.dataset.transferInitializing = 'true';
+    picker.inert = false;
+    picker.scrollTop = previous.picker.scrollTop;
+    trigger.focus({ preventScroll: true });
+    picker.showPopover();
+    this.#position(phase, visibleViewport(this.#window));
+    const destination = picker.getBoundingClientRect();
+    delete picker.dataset.transferInitializing;
+
+    const duration = this.#cssTime(this.#window.getComputedStyle?.(picker), '--picker-slide-duration', SLIDE_DURATION_MS);
+    const animation = picker.animate?.([
+      { left: `${origin.left}px`, top: `${origin.top}px`, width: `${origin.width}px`, height: `${origin.height}px` },
+      { left: `${destination.left}px`, top: `${destination.top}px`, width: `${destination.width}px`, height: `${destination.height}px` },
+    ], { duration, easing: 'cubic-bezier(.4, 0, .2, 1)' });
+    if (animation) {
+      const slide = this.#slide = { controls, animation };
+      animation.finished.then(() => {
+        if (this.#slide !== slide) return;
+        this.#slide = null;
+        delete picker.dataset.transferring;
+        this.#revealButtons(controls);
+      }, () => {});
+    } else {
+      delete picker.dataset.transferring;
+      this.#revealButtons(controls);
+    }
+    output.closest('.picker-center').focus({ preventScroll: true });
+  }
+
+  #finishSlide({ cancel = false } = {}) {
+    const slide = this.#slide;
+    if (!slide) return;
+    this.#slide = null;
+    if (cancel) slide.animation.cancel();
+    else slide.animation.finish();
+    delete slide.controls.picker.dataset.transferring;
+  }
+
   #positionOpenPicker() {
     const bounds = visibleViewport(this.#window);
     if (Object.keys(bounds).every(key => bounds[key] === this.#viewportBounds?.[key])) return;
+    this.#finishSlide();
     for (const controls of this.#closing.keys()) this.#finishImmediately(controls);
     const entry = Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'));
     if (entry) this.#position(entry[0], bounds);
@@ -354,14 +425,14 @@ export class DurationPicker {
           if (this.#revealSequence !== sequence) return;
           sequence.timer = null;
           sequence.stage = 2;
-          this.#revealButtons(controls);
+          this.#revealButtons(sequence.controls);
         }, pause);
       } else if (sequence.stage === 2 && sequence.timer === null) {
         sequence.timer = this.#window.setTimeout(() => {
           if (this.#revealSequence !== sequence) return;
           sequence.timer = null;
           sequence.stage = 3;
-          this.#revealButtons(controls);
+          this.#revealButtons(sequence.controls);
         }, sequence.fadeDuration);
       }
     }

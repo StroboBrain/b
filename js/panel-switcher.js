@@ -4,7 +4,7 @@ const SLIDE_DURATION_MS = 1500;
 const PANEL_NAMES = Object.freeze(['timing', 'settings']);
 
 /** Two interchangeable control panels beneath one persistent breathing stage.
- * Horizontal gestures swap in either direction; vertical scrolling and pinch
+ * Left from timing and right from settings follow the tab layout; vertical scrolling and pinch
  * zoom stay native. A consumed popup dismissal cannot also start a swipe.
  */
 export class PanelSwitcher {
@@ -107,6 +107,7 @@ export class PanelSwitcher {
       const horizontal = Math.abs(deltaX);
       const vertical = Math.abs((touch?.clientY ?? gesture.lastY) - gesture.y);
       if (gesture.axis === 'vertical' || horizontal < this.#swipeDistance() || horizontal <= vertical * DIRECTION_RATIO) return;
+      if ((this.#active === 'settings' && deltaX < 0) || (this.#active === 'timing' && deltaX > 0)) return;
       if (this.show(this.#otherPanel(), { direction: deltaX < 0 ? 'left' : 'right' })) {
         this.#suppressClick = true;
         if (event.cancelable) event.preventDefault();

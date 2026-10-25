@@ -127,7 +127,6 @@ export class BreathingApp {
       onToggleSound: () => {
         const enabled = !this.#preferences.soundCue;
         this.#setPreference('soundCue', enabled);
-        this.#preview.flash('soundCue', enabled);
         if (enabled) this.#preview.sampleSound();
       },
     });
@@ -162,13 +161,17 @@ export class BreathingApp {
       ui[id].addEventListener('change', () => {
         const enabled = ui[id].checked;
         this.#setPreference(preference, enabled);
-        this.#preview.flash(preference, enabled);
+        if (preference === 'showBreathText' && !this.#window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+          const label = ui[id].closest('.display-toggle')?.querySelector('.toggle-label');
+          for (const animation of label?.getAnimations?.() ?? []) animation.cancel();
+          label?.animate?.([{ opacity: 1 }, { opacity: 0, offset: .4 }, { opacity: 1 }],
+            { duration: 500, easing: 'ease-in-out' });
+        }
       });
     }
     ui['hold-choices'].addEventListener('change', ({ target }) => {
       if (HOLD_FEEDBACK_VARIANTS.includes(target.value)) {
         this.#setPreference('holdFeedback', target.value);
-        this.#preview.flash('holdFeedback', true);
       }
     });
     this.#document.addEventListener('keydown', (event) => {
@@ -299,6 +302,14 @@ export class BreathingApp {
     timings.inert = hidden;
     if (hidden) timings.setAttribute('aria-hidden', 'true');
     else timings.removeAttribute('aria-hidden');
+    const preview = this.#elements['exercise-stage'].dataset.preview === 'true';
+    for (const phase of PHASES) {
+      const button = this.#elements[`${phase}-value`];
+      if (preview) button.removeAttribute('aria-haspopup');
+      else button.setAttribute('aria-haspopup', 'dialog');
+      button.setAttribute('aria-controls', preview ? 'preview-frame' : `${phase}-picker`);
+      button.setAttribute('aria-label', `${preview ? 'preview' : 'adjust'} ${phaseDescription(phase)} duration, ${spokenDuration(this.#config[phase])}`);
+    }
   }
 
   #setZenMode(enabled) {
@@ -345,9 +356,9 @@ export class BreathingApp {
         return;
       }
       this.#pendingStart = null;
-      delete this.#elements.practice.dataset.starting;
       if (pending.status === 'paused') this.#session.resume();
       else this.#session.start(pending.config);
+      delete this.#elements.practice.dataset.starting;
       this.#wakeLock.acquire();
     }, 500);
   }
@@ -362,14 +373,15 @@ export class BreathingApp {
 
   #render(snapshot) {
     this.#cues.update(snapshot);
-    this.#sessionView.render(snapshot, { inhale: this.#config.inhale });
     const preview = !this.#pendingStart && snapshot.status === 'idle' && this.#panels?.active === 'settings';
+    if (!preview && this.#elements['exercise-stage'].dataset.preview === 'true') this.#sessionView.invalidate();
     this.#preview.setEnabled(preview);
+    if (!preview) this.#sessionView.render(snapshot, { inhale: this.#config.inhale });
     this.#elements['preview-heading'].hidden = !preview;
     this.#elements['preview-frame'].hidden = !preview;
     this.#elements['preview-sound-button'].hidden = !preview;
     this.#elements['preset-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
-    this.#elements['timing-fields'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status !== 'idle';
+    this.#elements['timing-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
     this.#elements['session-button'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status === 'running';
     this.#elements['session-button-icon'].className = 'icon-play';
     this.#elements['session-button-label'].textContent = this.#pendingStart ? 'starting' : preview ? 'preview' : snapshot.status === 'running'

@@ -120,6 +120,8 @@
 :host .developer-panel > .developer-primary { margin-top: 14px; }
 :host :focus-visible { outline: 2px solid #c9b8e6; outline-offset: 3px; }
 :host .developer-numbers + .developer-numbers { margin-top: 20px; }
+:host .developer-speaker-position { margin-top: 10px; }
+:host .developer-speaker-position .developer-note { margin: 0; }
 :host .developer-number-field, :host .developer-select { display: grid; gap: 6px; min-width: 0; }
 :host .developer-number-field > label, :host .developer-select { color: #c8bdd3; font-size: 12px; }
 :host .developer-stepper { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; gap: 4px; }
