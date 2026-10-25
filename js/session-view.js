@@ -35,12 +35,16 @@ export class SessionView {
       visual.dataset.phase = phase ?? 'inhale';
       visual.style.setProperty('--phase-duration', `${snapshot.phaseDurationMs}ms`);
       visual.style.setProperty('--phase-delay', `${-snapshot.phaseElapsedMs}ms`);
+      ui['exercise-stage']?.style.setProperty('--phase-duration', `${snapshot.phaseDurationMs}ms`);
+      ui['exercise-stage']?.style.setProperty('--phase-delay', `${-snapshot.phaseElapsedMs}ms`);
       // Restart the CSS animation at the engine's elapsed offset, including after pause.
       const orb = ui['breathing-orb'];
       const animations = [orb, ui['hold-fill'], ui['hold-fill'].parentElement];
       for (const element of animations) element.style.animationName = 'none';
+      ui['phase-track'].style.setProperty('--timing-animation-name', 'none');
       void orb.offsetWidth;
       for (const element of animations) element.style.animationName = '';
+      ui['phase-track'].style.setProperty('--timing-animation-name', 'hold-fill');
 
       for (const step of ui['phase-track'].children) {
         if (active && step.dataset.phase === phase) step.setAttribute('aria-current', 'step');

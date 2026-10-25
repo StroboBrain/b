@@ -1,0 +1,86 @@
+/* Development choices leave the separate animation lab and release app untouched. */
+html[data-dev-popup]:not([data-fade-preview]) .duration-picker {
+  --picker-fold-duration: 500ms;
+}
+html[data-dev-popup]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) {
+  transition-duration: 850ms;
+  transition-timing-function: cubic-bezier(.4, 0, .2, 1);
+}
+html[data-dev-popup]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step[data-revealed="false"] {
+  transform: none;
+}
+
+html[data-dev-popup="accordion"]:not([data-fade-preview]) .duration-picker {
+  --picker-step-fade-duration: 160ms;
+}
+
+html[data-dev-popup="quick"]:not([data-fade-preview]) .duration-picker {
+  --picker-step-fade-duration: 100ms;
+}
+html[data-dev-popup="quick"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) {
+  transition-duration: 420ms;
+  transition-timing-function: cubic-bezier(.2, .8, .2, 1);
+}
+
+html[data-dev-popup="soft"]:not([data-fade-preview]) .duration-picker {
+  --picker-step-fade-duration: 360ms;
+}
+html[data-dev-popup="soft"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) {
+  transition-duration: 1100ms;
+  transition-timing-function: ease;
+}
+
+html[data-dev-popup="rise"]:not([data-fade-preview]) .duration-picker {
+  --picker-step-fade-duration: 260ms;
+}
+html[data-dev-popup="rise"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) {
+  transition-duration: 760ms;
+  transition-timing-function: cubic-bezier(.16, 1, .3, 1);
+}
+html[data-dev-popup="rise"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step {
+  --dev-reveal-offset: 12px;
+  transition: opacity var(--picker-step-fade-duration) ease,
+    visibility 0s linear,
+    transform var(--picker-step-fade-duration) cubic-bezier(.16, 1, .3, 1);
+}
+html[data-dev-popup="rise"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step:nth-child(n + 4) {
+  --dev-reveal-offset: -12px;
+}
+html[data-dev-popup="rise"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step[data-revealed="false"] {
+  transform: translateY(var(--dev-reveal-offset));
+}
+
+html[data-dev-popup="settle"]:not([data-fade-preview]) .duration-picker {
+  --picker-step-fade-duration: 220ms;
+}
+html[data-dev-popup="settle"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) {
+  transition-duration: 900ms;
+  transition-timing-function: cubic-bezier(.2, .85, .25, 1);
+}
+html[data-dev-popup="settle"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step {
+  transition: opacity var(--picker-step-fade-duration) ease,
+    visibility 0s linear,
+    transform var(--picker-step-fade-duration) cubic-bezier(.2, .85, .25, 1);
+}
+html[data-dev-popup="settle"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step[data-revealed="false"] {
+  transform: scale(.82);
+}
+
+html[data-dev-popup="curtain"]:not([data-fade-preview]) .duration-picker {
+  --picker-step-fade-duration: 320ms;
+}
+html[data-dev-popup="curtain"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) {
+  transition-duration: 1250ms;
+  transition-timing-function: cubic-bezier(.76, 0, .24, 1);
+}
+html[data-dev-popup="curtain"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step {
+  transition: opacity var(--picker-step-fade-duration) ease,
+    visibility 0s linear,
+    transform var(--picker-step-fade-duration) cubic-bezier(.76, 0, .24, 1);
+}
+html[data-dev-popup="curtain"]:not([data-fade-preview]) .duration-picker:popover-open:not([data-closing="true"]) .duration-step[data-revealed="false"] {
+  transform: scaleY(.18);
+}
+
+/* The reveal coordinator retains the expansion/pause/fine/coarse sequence.
+   Only opening rules above change transforms; closing always uses the core fold. */

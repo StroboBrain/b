@@ -13,6 +13,9 @@
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./popup.css">
+    <link rel="stylesheet" href="./developer/developer-mode.css" data-development-only>
+    <link rel="stylesheet" href="./developer/popup-variants.css" data-development-only>
     <link rel="modulepreload" href="./js/app.js">
     <link rel="modulepreload" href="./js/breathing-engine.js">
     <link rel="modulepreload" href="./js/preset-store.js">
@@ -32,7 +35,10 @@
     <link rel="modulepreload" href="./js/viewport-layout.js">
     <link rel="modulepreload" href="./js/portrait-orientation.js">
     <link rel="modulepreload" href="./js/panel-switcher.js">
+    <link rel="modulepreload" href="./developer/developer-mode.js" data-development-only>
+    <link rel="modulepreload" href="./developer/popup-variants.js" data-development-only>
     <script type="module" src="./js/main.js"></script>
+    <script type="module" src="./developer/entry.js" data-development-only></script>
   </head>
   <body>
     <div id="app-shell" class="app-shell" hidden>
@@ -44,7 +50,9 @@
             <div class="practice-primary">
               <div class="practice-stage">
                 <div id="exercise-stage" class="exercise-stage" data-preview="false">
-                  <p id="preview-heading" class="preview-heading" hidden>preview</p>
+                  <fieldset id="preview-frame" class="preview-frame" hidden>
+                    <legend id="preview-heading" class="preview-heading">preview</legend>
+                  </fieldset>
                   <div id="breathing-visual" class="breathing-visual" data-state="idle" data-phase="inhale" data-hold-feedback="rise" aria-hidden="true">
                     <div id="breathing-orb" class="breathing-orb">
                       <div class="hold-feedback"><div id="hold-fill" class="hold-fill"></div></div>
@@ -58,8 +66,8 @@
                   </div>
 
                   <p id="phase-announcement" class="sr-only" role="status"></p>
-                  <button id="session-button" class="button button-primary" type="button" disabled><span class="play-fold play-fold-top" aria-hidden="true"></span><span class="play-fold play-fold-bottom" aria-hidden="true"></span><span id="session-button-icon" class="icon-play" aria-hidden="true"></span><span id="session-button-label" class="sr-only">start</span></button>
-                  <button id="preview-sound-button" class="button button-outline preview-sound-button" type="button" aria-label="unmute sound" aria-pressed="false" hidden disabled>
+                  <button id="session-button" class="button button-primary" type="button" disabled><span id="session-button-icon" class="icon-play" aria-hidden="true"></span><span id="session-button-label" class="sr-only">start</span></button>
+                  <button id="preview-sound-button" class="button button-outline preview-sound-button" type="button" data-panel-gesture-source="practice" aria-label="unmute sound" aria-pressed="false" hidden disabled>
                     <svg class="line-icon speaker-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M3 9h4l5-4v14l-5-4H3z"/>
                       <path class="speaker-waves" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>
@@ -154,6 +162,7 @@
 
                 </section>
                 <section id="display-settings" class="control-panel settings-panel" role="tabpanel" aria-labelledby="settings-tab" tabindex="0" hidden>
+                  <div class="settings-content">
                   <fieldset class="display-options">
                     <legend>settings</legend>
                     <div class="display-controls">
@@ -164,7 +173,7 @@
                     </div>
                   </fieldset>
                   <fieldset id="hold-feedback-fields" class="hold-options">
-                    <legend id="hold-feedback-heading">hold feedback</legend>
+                    <legend id="hold-feedback-heading">animation</legend>
                     <div id="hold-choices" class="hold-choices" role="radiogroup" aria-labelledby="hold-feedback-heading">
                       <label class="hold-choice" data-hold-feedback="rise" title="fill from the bottom">
                         <input class="sr-only" type="radio" name="hold-feedback" value="rise" checked>
@@ -188,6 +197,7 @@
                       </label>
                     </div>
                   </fieldset>
+                  </div>
                   <footer class="install-footer">
                     <button id="install-button" class="button button-outline" type="button" hidden>install app</button>
                   </footer>

@@ -91,7 +91,7 @@ export class PresetTiles {
       const tile = this.#tiles.get(preset.id) ?? this.#createTile(preset.id);
       const input = tile.querySelector('input');
       tile.querySelector('.preset-name').textContent = preset.name;
-      tile.querySelector('.preset-timing').textContent = `${PHASES.map((phase) => preset.config[phase]).join(' · ')} s`;
+      tile.querySelector('.preset-timing').textContent = PHASES.map((phase) => preset.config[phase]).join(' · ');
       const description = PHASES.map((phase) => preset.config[phase] === 0
         ? `no ${phaseDescription(phase)}` : `${phaseDescription(phase)} ${spokenDuration(preset.config[phase])}`).join(', ');
       input.setAttribute('aria-label', `${preset.name}: ${description}`);

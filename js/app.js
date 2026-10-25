@@ -26,7 +26,7 @@ export const REQUIRED_IDS = Object.freeze([
   'practice', 'breathing-visual', 'breathing-orb', 'hold-fill', 'phase-caption',
   'phase-count', 'phase-track', 'phase-announcement', 'session-button',
   'session-button-icon', 'session-button-label', 'hold-choices', 'hold-feedback-fields',
-  'preset-tiles', 'preset-fields', 'settings-note', 'timing-fields', 'preview-heading', 'preview-sound-button',
+  'preset-tiles', 'preset-fields', 'settings-note', 'timing-fields', 'preview-frame', 'preview-heading', 'preview-sound-button',
   'install-button',
   'exercise-stage', 'timing-panel', 'display-settings', 'panel-tabs', 'timing-tab', 'settings-tab', 'notification', ...Object.keys(TOGGLE_PREFERENCES),
   ...PHASES.flatMap((phase) => [`${phase}-value`, `${phase}-decrease`, `${phase}-increase`, `${phase}-fine-decrease`, `${phase}-fine-increase`, `${phase}-picker`, `${phase}-picked-value`, `track-${phase}`]),
@@ -127,6 +127,7 @@ export class BreathingApp {
       onToggleSound: () => {
         const enabled = !this.#preferences.soundCue;
         this.#setPreference('soundCue', enabled);
+        this.#preview.flash('soundCue', enabled);
         if (enabled) this.#preview.sampleSound();
       },
     });
@@ -149,13 +150,7 @@ export class BreathingApp {
   #bindEvents() {
     const ui = this.#elements;
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
-    ui['timing-fields'].addEventListener('click', ({ target }) => {
-      this.#presetTiles.cancelInteraction();
-      const trigger = target.closest('button');
-      if (this.#panels.active === 'settings' && PHASES.some(phase => ui[`${phase}-value`] === trigger)) {
-        this.#preview.pulse();
-      }
-    });
+    ui['timing-fields'].addEventListener('click', () => this.#presetTiles.cancelInteraction());
     this.#document.addEventListener('click', (event) => {
       if (!this.#zenMode || this.#pendingStart || this.#status === 'paused') return;
       // Capture the tap before a control can act on the restored menu.
@@ -167,10 +162,14 @@ export class BreathingApp {
       ui[id].addEventListener('change', () => {
         const enabled = ui[id].checked;
         this.#setPreference(preference, enabled);
+        this.#preview.flash(preference, enabled);
       });
     }
     ui['hold-choices'].addEventListener('change', ({ target }) => {
-      if (HOLD_FEEDBACK_VARIANTS.includes(target.value)) this.#setPreference('holdFeedback', target.value);
+      if (HOLD_FEEDBACK_VARIANTS.includes(target.value)) {
+        this.#setPreference('holdFeedback', target.value);
+        this.#preview.flash('holdFeedback', true);
+      }
     });
     this.#document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && this.#zenMode) this.#navigation.leave();
@@ -287,6 +286,7 @@ export class BreathingApp {
     this.#cues.configure(this.#preferences);
     const { holdFeedback } = this.#preferences;
     this.#elements['breathing-visual'].dataset.holdFeedback = holdFeedback;
+    this.#elements['exercise-stage'].dataset.animation = holdFeedback;
     this.#elements['hold-choices'].querySelector(`input[value="${holdFeedback}"]`).checked = true;
     this.#preview.configure(this.#config, this.#preferences);
     this.#syncTimingsAccessibility();
@@ -366,14 +366,10 @@ export class BreathingApp {
     const preview = !this.#pendingStart && snapshot.status === 'idle' && this.#panels?.active === 'settings';
     this.#preview.setEnabled(preview);
     this.#elements['preview-heading'].hidden = !preview;
+    this.#elements['preview-frame'].hidden = !preview;
     this.#elements['preview-sound-button'].hidden = !preview;
     this.#elements['preset-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
-    this.#elements['timing-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
-    for (const phase of PHASES) {
-      const trigger = this.#elements[`${phase}-value`];
-      trigger.setAttribute('aria-label', `${preview ? 'preview' : 'adjust'} ${phaseDescription(phase)} duration, ${spokenDuration(this.#config[phase])}`);
-      trigger.setAttribute('aria-haspopup', preview ? 'false' : 'dialog');
-    }
+    this.#elements['timing-fields'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status !== 'idle';
     this.#elements['session-button'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status === 'running';
     this.#elements['session-button-icon'].className = 'icon-play';
     this.#elements['session-button-label'].textContent = this.#pendingStart ? 'starting' : preview ? 'preview' : snapshot.status === 'running'

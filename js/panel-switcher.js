@@ -1,6 +1,6 @@
 const SWIPE_DISTANCE_PX = 48;
 const DIRECTION_RATIO = 1.3;
-const SLIDE_DURATION_MS = 900;
+const SLIDE_DURATION_MS = 1500;
 const PANEL_NAMES = Object.freeze(['timing', 'settings']);
 
 /** Two interchangeable control panels beneath one persistent breathing stage.
@@ -66,9 +66,11 @@ export class PanelSwitcher {
     }
     this.#listen(document, 'pointerdown', event => {
       this.#suppressClick = false;
+      const path = event.composedPath?.() ?? [event.target];
+      const explicitSource = path.some(node => node?.dataset?.panelGestureSource === this.#root.id);
       this.#pointerReady = event.pointerType === 'touch' && event.isPrimary !== false
-        && !event.defaultPrevented && this.#available() && this.#root.contains(event.target)
-        && !this.#excludedTarget(event.target);
+        && !event.defaultPrevented && this.#available()
+        && (explicitSource || this.#root.contains(event.target) && !this.#excludedTarget(event.target));
       if (!this.#pointerReady) this.#gesture = null;
     }, true);
     this.#listen(document, 'touchstart', event => {
@@ -104,7 +106,7 @@ export class PanelSwitcher {
       const deltaX = (touch?.clientX ?? gesture.lastX) - gesture.x;
       const horizontal = Math.abs(deltaX);
       const vertical = Math.abs((touch?.clientY ?? gesture.lastY) - gesture.y);
-      if (gesture.axis === 'vertical' || horizontal < SWIPE_DISTANCE_PX || horizontal <= vertical * DIRECTION_RATIO) return;
+      if (gesture.axis === 'vertical' || horizontal < this.#swipeDistance() || horizontal <= vertical * DIRECTION_RATIO) return;
       if (this.show(this.#otherPanel(), { direction: deltaX < 0 ? 'left' : 'right' })) {
         this.#suppressClick = true;
         if (event.cancelable) event.preventDefault();
@@ -131,10 +133,11 @@ export class PanelSwitcher {
       this.#listen(this.#reducedMotion, 'change', () => { if (this.#reducedMotion.matches) this.#interrupt(); });
     }
     if (typeof window.MutationObserver === 'function') {
-      this.#stateObserver = new window.MutationObserver(() => {
-        if (!this.#available()) this.#interrupt();
+      this.#stateObserver = new window.MutationObserver((records = []) => {
+        const styleChanged = records.some(record => record.target === this.#root && record.attributeName === 'style');
+        if (!this.#available() || styleChanged) this.#interrupt();
       });
-      this.#stateObserver.observe(this.#root, { attributes: true, attributeFilter: ['data-state'] });
+      this.#stateObserver.observe(this.#root, { attributes: true, attributeFilter: ['data-state', 'style'] });
       this.#stateObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
     this.#render();
@@ -187,7 +190,7 @@ export class PanelSwitcher {
 
   #excludedTarget(target) {
     return Boolean(target?.closest?.('input, select, textarea, [contenteditable="true"], .duration-picker, [popover], dialog, .notification')
-      || this.#document.querySelector(':popover-open, dialog[open]'));
+      || this.#document.querySelector('.duration-picker:popover-open, dialog[open]'));
   }
 
   #render() {
@@ -212,6 +215,13 @@ export class PanelSwitcher {
     const value = this.#window.getComputedStyle(this.#root).getPropertyValue('--panel-slide-duration').trim();
     const match = /^(\d+(?:\.\d+)?|\.\d+)(ms|s)$/.exec(value);
     return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : SLIDE_DURATION_MS;
+  }
+
+  #swipeDistance() {
+    const value = this.#window.getComputedStyle(this.#root).getPropertyValue('--panel-swipe-distance').trim();
+    const match = /^(\d+(?:\.\d+)?|\.\d+)px$/.exec(value);
+    const pixels = match ? Number(match[1]) : NaN;
+    return pixels >= 32 && pixels <= 120 ? pixels : SWIPE_DISTANCE_PX;
   }
 
   #finishMotion() {
