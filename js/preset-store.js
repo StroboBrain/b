@@ -7,7 +7,7 @@ const PREFERENCES_KEY = 'breathing.preferences.v1';
 export const HOLD_FEEDBACK_VARIANTS = Object.freeze(['rise', 'sweep', 'spread', 'fade']);
 
 export const DEFAULT_PREFERENCES = Object.freeze({
-  showBreathText: true,
+  showBreathText: false,
   showBreathNumbers: true,
   showBreathGuides: true,
   showPhaseTimings: true,

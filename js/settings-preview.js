@@ -8,6 +8,7 @@ export class SettingsPreview {
   #window;
   #container;
   #visual;
+  #orb;
   #track;
   #caption;
   #count;
@@ -19,6 +20,7 @@ export class SettingsPreview {
   #pageHidden = false;
   #disposed = false;
   #audio = null;
+  #pulse = null;
   #listeners = [];
 
   constructor({ document, window, container, onToggleSound = () => {} } = {}) {
@@ -34,21 +36,26 @@ export class SettingsPreview {
     this.#container = container;
     this.#onToggleSound = onToggleSound;
     this.#visual = container.querySelector('.breathing-visual');
+    this.#orb = this.#visual?.querySelector('.breathing-orb');
     this.#track = container.querySelector('.phase-track');
     this.#caption = container.querySelector('.phase-caption');
     this.#count = container.querySelector('.phase-count');
     this.#soundButton = container.querySelector('#preview-sound-button');
-    if ([this.#visual, this.#track, this.#caption, this.#count, this.#soundButton].some(node => !node)) {
+    if ([this.#visual, this.#orb, this.#track, this.#caption, this.#count, this.#soundButton].some(node => !node)) {
       throw new Error('The settings preview is missing its breathing controls.');
     }
     this.#listen(this.#soundButton, 'click', () => { if (this.#canToggleSound()) this.#onToggleSound(); });
     this.#listen(document, 'visibilitychange', () => {
-      if (document.hidden) this.#stopSound();
+      if (document.hidden) {
+        this.#stopSound();
+        this.#stopPulse();
+      }
       this.#syncSoundButton();
     });
     this.#listen(window, 'pagehide', () => {
       this.#pageHidden = true;
       this.#stopSound();
+      this.#stopPulse();
     });
     this.#listen(window, 'pageshow', () => {
       this.#pageHidden = false;
@@ -74,6 +81,7 @@ export class SettingsPreview {
     data.soundCue = String(preferences.soundCue);
     if (this.#enabled) this.#renderPreview();
     if (!preferences.soundCue) this.#stopSound();
+    if (!preferences.showPhaseTimings) this.#stopPulse();
     this.#syncSoundButton();
   }
 
@@ -97,14 +105,40 @@ export class SettingsPreview {
     if (this.#enabled === enabled) return;
     this.#enabled = enabled;
     if (enabled) this.#renderPreview();
-    if (!enabled) this.#stopSound();
+    if (!enabled) {
+      this.#stopSound();
+      this.#stopPulse();
+    }
     this.#syncSoundButton();
+  }
+
+  /** Demonstrate the circle once without starting a session or editing its rhythm. */
+  pulse() {
+    if (this.#disposed || !this.#enabled || this.#pageHidden || this.#document.hidden
+      || !this.#preferences.showPhaseTimings || typeof this.#orb.animate !== 'function') return false;
+    this.#stopPulse();
+    const reducedMotion = this.#window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const frames = reducedMotion
+      ? [{ opacity: 1 }, { opacity: 0.65 }, { opacity: 1 }]
+      : [{ transform: 'scale(var(--breath-small))' }, { transform: 'scale(var(--breath-large))' },
+        { transform: 'scale(var(--breath-small))' }];
+    const pulse = this.#pulse = this.#orb.animate(frames, { duration: 1000, easing: 'ease-in-out' });
+    pulse.onfinish = () => { if (this.#pulse === pulse) this.#pulse = null; };
+    return true;
+  }
+
+  #stopPulse() {
+    if (!this.#pulse) return;
+    this.#pulse.onfinish = null;
+    this.#pulse.cancel();
+    this.#pulse = null;
   }
 
   dispose() {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#stopSound();
+    this.#stopPulse();
     for (const remove of this.#listeners) remove();
     this.#listeners = [];
   }

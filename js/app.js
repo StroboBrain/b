@@ -93,7 +93,7 @@ export class BreathingApp {
     this.#preferences = store.loadPreferences();
     this.#durationPicker = new DurationPicker({ document, window, container: this.#elements['timing-fields'],
       onChange: (phase, value) => this.#setField(phase, value),
-      canChange: () => this.#status === 'idle' && !this.#pendingStart,
+      canChange: () => this.#status === 'idle' && !this.#pendingStart && this.#panels?.active !== 'settings',
       canActivateOutside: (target) => target === this.#elements['settings-tab']
         || target === this.#elements['timing-tab']
         || (target?.parentElement === this.#elements['preset-tiles']
@@ -149,7 +149,13 @@ export class BreathingApp {
   #bindEvents() {
     const ui = this.#elements;
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
-    ui['timing-fields'].addEventListener('click', () => this.#presetTiles.cancelInteraction());
+    ui['timing-fields'].addEventListener('click', ({ target }) => {
+      this.#presetTiles.cancelInteraction();
+      const trigger = target.closest('button');
+      if (this.#panels.active === 'settings' && PHASES.some(phase => ui[`${phase}-value`] === trigger)) {
+        this.#preview.pulse();
+      }
+    });
     this.#document.addEventListener('click', (event) => {
       if (!this.#zenMode || this.#pendingStart || this.#status === 'paused') return;
       // Capture the tap before a control can act on the restored menu.
@@ -238,16 +244,6 @@ export class BreathingApp {
     const ui = this.#elements;
     this.#durationPicker.render(this.#config, this.#editor.selected.id);
     this.#preview.configure(this.#config, this.#preferences);
-    this.#syncTimingsAccessibility();
-  }
-
-  #syncTimingsAccessibility() {
-    const hidden = !this.#preferences.showPhaseTimings
-      && (Boolean(this.#pendingStart) || this.#status !== 'idle' || this.#panels.active === 'settings');
-    const timings = this.#elements['timing-fields'];
-    timings.inert = hidden;
-    if (hidden) timings.setAttribute('aria-hidden', 'true');
-    else timings.removeAttribute('aria-hidden');
     for (const field of PHASES) {
       const value = this.#config[field];
       ui[`track-${field}`].textContent = formatDuration(value);
@@ -293,6 +289,16 @@ export class BreathingApp {
     this.#elements['breathing-visual'].dataset.holdFeedback = holdFeedback;
     this.#elements['hold-choices'].querySelector(`input[value="${holdFeedback}"]`).checked = true;
     this.#preview.configure(this.#config, this.#preferences);
+    this.#syncTimingsAccessibility();
+  }
+
+  #syncTimingsAccessibility() {
+    const hidden = !this.#preferences.showPhaseTimings
+      && (Boolean(this.#pendingStart) || this.#status !== 'idle' || this.#panels.active === 'settings');
+    const timings = this.#elements['timing-fields'];
+    timings.inert = hidden;
+    if (hidden) timings.setAttribute('aria-hidden', 'true');
+    else timings.removeAttribute('aria-hidden');
   }
 
   #setZenMode(enabled) {
@@ -362,7 +368,12 @@ export class BreathingApp {
     this.#elements['preview-heading'].hidden = !preview;
     this.#elements['preview-sound-button'].hidden = !preview;
     this.#elements['preset-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
-    this.#elements['timing-fields'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status !== 'idle';
+    this.#elements['timing-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
+    for (const phase of PHASES) {
+      const trigger = this.#elements[`${phase}-value`];
+      trigger.setAttribute('aria-label', `${preview ? 'preview' : 'adjust'} ${phaseDescription(phase)} duration, ${spokenDuration(this.#config[phase])}`);
+      trigger.setAttribute('aria-haspopup', preview ? 'false' : 'dialog');
+    }
     this.#elements['session-button'].disabled = preview || Boolean(this.#pendingStart) || snapshot.status === 'running';
     this.#elements['session-button-icon'].className = 'icon-play';
     this.#elements['session-button-label'].textContent = this.#pendingStart ? 'starting' : preview ? 'preview' : snapshot.status === 'running'

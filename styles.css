@@ -804,6 +804,16 @@ fieldset {
 #timing-fields {
   position: relative;
   background: var(--surface);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .5s ease, visibility 0s linear;
+}
+.exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields,
+#practice:has(#show-phase-timings:not(:checked)):is(:not([data-state="idle"]), [data-starting="true"]) #timing-fields {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .5s ease, visibility 0s linear .5s;
 }
 .phase-timings > legend, .preset-options > legend, .display-options > legend, .hold-options > legend {
   padding: 0 6px;
@@ -1142,14 +1152,14 @@ fieldset {
 /* The same breathing visual stays in place; only its preview label arrives. */
 .preview-heading {
   position: absolute;
-  top: 0;
+  top: -8px;
   left: 4px;
   z-index: 3;
   margin: 0;
   padding: 0 6px;
   background: var(--surface);
   color: var(--text-control);
-  font-size: 32px;
+  font-size: 40px;
   font-weight: 500;
   line-height: 1.1;
   animation: preview-heading-arrive .6s cubic-bezier(.22, 1, .36, 1) both;
@@ -1162,11 +1172,11 @@ fieldset {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 76px;
-  min-height: 76px;
-  padding: 9px;
+  width: 48px;
+  min-height: 48px;
+  padding: 7px;
 }
-.speaker-icon { width: 56px; height: 56px; }
+.speaker-icon { width: 32px; height: 32px; }
 .exercise-stage:not([data-sound-cue="true"]) .speaker-waves,
 .exercise-stage[data-sound-cue="true"] .speaker-muted { display: none; }
 .exercise-stage[data-sound-playing="true"] .preview-sound-button { border-color: var(--paper); }
@@ -1219,7 +1229,7 @@ fieldset {
 .settings-panel .display-toggle { font-size: clamp(14px, 4.4cqw, 18px); }
 .settings-panel .display-controls > .button-toggle > .toggle-label { padding-inline-start: 0; }
 @media (max-height: 800px) {
-  .preview-heading { font-size: 28px; }
+  .preview-heading { font-size: 36px; }
   .practice-card { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
   .practice-card .preset-options { padding: 6px; }
   .display-controls { gap: 6px; }
@@ -1237,13 +1247,13 @@ fieldset {
   .practice-primary { --visual-size: max(80px, calc(100dvh - 392px)); gap: 6px; }
   .practice-stage { --stage-height: calc(var(--visual-size) + 112px); }
   .exercise-stage { padding-top: 4px; }
-  .preview-heading { font-size: 24px; line-height: 1; }
+  .preview-heading { font-size: 30px; line-height: 1; }
   .panel-tab { font-size: 14px; line-height: 1.2; padding: 4px; }
   .practice-card :is(.phase-timings, .preset-options) { padding: 4px; }
   .practice-card .duration-button { min-height: 44px; font-size: 15px; line-height: 1.2; gap: 2px; padding-block: 2px; }
   .exercise-stage .phase-timings > legend, .settings-panel > fieldset > legend { display: none; }
-  .preview-sound-button { width: 64px; min-height: 64px; padding: 6px; }
-  .speaker-icon { width: 50px; height: 50px; }
+  .preview-sound-button { width: 44px; min-height: 44px; padding: 7px; }
+  .speaker-icon { width: 28px; height: 28px; }
   .preset-options > legend { font-size: 14px; line-height: 1.2; }
   .preset-tiles { gap: 8px; padding-top: 4px; }
   .timing-panel .preset-tile { min-height: 56px; }
