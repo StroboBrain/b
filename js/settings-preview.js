@@ -42,6 +42,7 @@ export class SettingsPreview {
   #observer;
   #practice;
   #animationDemo = null;
+  #controlsExitTimer = null;
 
   constructor({ document, window, container, onToggleSound = () => {},
     now = () => (window.performance ?? globalThis.performance).now() } = {}) {
@@ -124,8 +125,10 @@ export class SettingsPreview {
     const data = this.#container.dataset;
     data.showText = String(preferences.showBreathText);
     data.showTime = String(preferences.showBreathNumbers);
+    data.showGuides = String(preferences.showBreathGuides);
     data.showTimings = String(preferences.showPhaseTimings);
     data.soundCue = String(preferences.soundCue);
+    for (const guide of this.#container.querySelectorAll('.breath-guide')) guide.removeAttribute('hidden');
     if (this.#enabled) {
       if (changed) {
         this.#showReady();
@@ -137,7 +140,7 @@ export class SettingsPreview {
   }
 
   #renderPreview(snapshot) {
-    const { holdFeedback, showBreathGuides } = this.#preferences;
+    const { holdFeedback } = this.#preferences;
     this.#visual.dataset.holdFeedback = holdFeedback;
     const phase = snapshot.phase ?? 'inhale';
     const key = `${snapshot.status}:${snapshot.phaseStartedAtMs}:${phase}`;
@@ -149,7 +152,6 @@ export class SettingsPreview {
     }
     this.#count.textContent = snapshot.status === 'idle' ? String(this.#config.inhale)
       : String(Math.min(snapshot.phaseDurationMs / 1000, Math.ceil(snapshot.phaseRemainingMs / 1000)));
-    for (const guide of this.#container.querySelectorAll('.breath-guide')) guide.hidden = !showBreathGuides;
     for (const step of this.#track.children) {
       step.querySelector('.phase-time').textContent = formatDuration(this.#config[step.dataset.phase]);
       step.classList.toggle('is-skipped', this.#config[step.dataset.phase] === 0);
@@ -165,6 +167,7 @@ export class SettingsPreview {
     this.#container.dataset.preview = String(enabled);
     if (this.#enabled === enabled) return;
     this.#enabled = enabled;
+    this.#showControls(enabled);
     if (enabled) { this.#showReady(); this.#syncPlayButton(); }
     if (!enabled) {
       this.#clearCycleTimer();
@@ -177,6 +180,34 @@ export class SettingsPreview {
       delete this.#container.dataset.previewPaused;
     }
     this.#syncSoundButton();
+  }
+
+  #showControls(visible) {
+    if (this.#controlsExitTimer !== null) this.#window.clearTimeout(this.#controlsExitTimer);
+    this.#controlsExitTimer = null;
+    const frame = this.#container.querySelector('#preview-frame');
+    const controls = [frame, this.#heading, this.#soundButton].filter(Boolean);
+    if (visible) {
+      delete this.#container.dataset.previewLeaving;
+      for (const control of controls) { control.hidden = false; control.inert = false; }
+      return;
+    }
+    const hide = () => {
+      this.#controlsExitTimer = null;
+      for (const control of controls) control.hidden = true;
+      delete this.#container.dataset.previewLeaving;
+    };
+    for (const control of controls) control.inert = true;
+    if (this.#document.hidden || this.#pageHidden
+      || this.#window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { hide(); return; }
+    for (const control of [frame, this.#soundButton].filter(Boolean)) {
+      const style = this.#window.getComputedStyle?.(control);
+      control.style.setProperty('--preview-exit-transform', style?.transform ?? 'none');
+      control.style.setProperty('--preview-exit-opacity', style?.opacity ?? '1');
+    }
+    this.#container.dataset.previewLeaving = 'true';
+    this.#controlsExitTimer = this.#window.setTimeout(hide,
+      readCssMilliseconds(this.#window.getComputedStyle?.(this.#container), '--preview-motion-duration', 1000));
   }
 
   #syncAvailability() {
@@ -193,6 +224,16 @@ export class SettingsPreview {
   #syncPlayButton() {
     if (this.#enabled && this.#playButton) this.#playButton.disabled = !this.#available()
       || !['ready', 'animation'].includes(this.#container.dataset.previewStep);
+    if (this.#enabled) {
+      const timings = this.#container.querySelector('#timing-fields');
+      if (timings) {
+        const hidden = !this.#preferences.showPhaseTimings
+          && ['starting', 'breathing'].includes(this.#container.dataset.previewStep);
+        timings.inert = hidden;
+        if (hidden) timings.setAttribute('aria-hidden', 'true');
+        else timings.removeAttribute('aria-hidden');
+      }
+    }
   }
 
   #clearCycleTimer() {
@@ -276,19 +317,21 @@ export class SettingsPreview {
       }, () => { if (this.#pendingPulse === pending) this.#pendingPulse = null; });
       return true;
     }
-    const reducedMotion = this.#window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const rest = reducedMotion ? { opacity: 1 } : { transform: 'scale(1)', opacity: 1 };
-    const peak = reducedMotion ? { opacity: .45 } : { transform: 'scale(.94)', opacity: .45 };
+    // Keep the legend's opaque cutout stationary over the fieldset border.
+    const rest = { opacity: 1 };
+    const peak = { opacity: .45 };
+    const duration = readCssMilliseconds(this.#window.getComputedStyle?.(this.#container),
+      '--preview-flash-duration', FLASH_DURATION_MS);
     const frames = [rest, peak, rest, rest, peak, rest]
       .map((frame, index) => ({ ...frame, offset: FLASH_OFFSETS[index], easing: 'ease-in-out' }));
-    const pulse = this.#pulse = this.#heading.animate(frames, { duration: FLASH_DURATION_MS, easing: 'linear' });
+    const pulse = this.#pulse = this.#heading.animate(frames, { duration, easing: 'linear' });
     pulse.onfinish = () => { if (this.#pulse === pulse) this.#pulse = null; };
     if (typeof frame?.animate === 'function') {
-      const normal = { borderColor: '#333', boxShadow: '0 0 0 0 transparent' };
-      const bright = { borderColor: '#eee', boxShadow: '0 0 0 1px #aaa' };
+      const normal = { borderColor: this.#window.getComputedStyle?.(frame)?.borderTopColor || '#333' };
+      const bright = { borderColor: '#eee' };
       const outline = this.#framePulse = frame.animate([normal, bright, normal, normal, bright, normal]
         .map((keyframe, index) => ({ ...keyframe, offset: FLASH_OFFSETS[index], easing: 'ease-in-out' })),
-      { duration: FLASH_DURATION_MS, easing: 'linear' });
+      { duration, easing: 'linear' });
       outline.onfinish = () => { if (this.#framePulse === outline) this.#framePulse = null; };
     }
     return true;
@@ -310,6 +353,8 @@ export class SettingsPreview {
     this.#disposed = true;
     this.#enabled = false;
     this.#clearCycleTimer();
+    if (this.#controlsExitTimer !== null) this.#window.clearTimeout(this.#controlsExitTimer);
+    this.#controlsExitTimer = null;
     this.#animationDemo = null;
     this.#observer?.disconnect();
     this.#driver.stop();

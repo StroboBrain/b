@@ -10,6 +10,7 @@ const STEP_REVEAL_DELAY_MS = 160;
 const STEP_REVEAL_PAUSE_MS = 120;
 const EXPANSION_DURATION_MS = 760;
 const SLIDE_DURATION_MS = 500;
+const SLIDE_EASING = 'cubic-bezier(.5, 0, .85, .5)';
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls; every accepted
@@ -33,6 +34,7 @@ export class DurationPicker {
   #closing = new Map();
   #transferred = new WeakSet();
   #slide = null;
+  #context = null;
 
   constructor({ document, window, container, onChange, canChange = () => true,
     canActivateOutside = () => false } = {}) {
@@ -145,9 +147,19 @@ export class DurationPicker {
     }
   }
 
-  render(config) {
+  /** A different preset updates the existing editor and stops its old held adjustment. */
+  render(config, context = null) {
+    if (context !== null && (typeof context !== 'string' || !context)) {
+      throw new TypeError('A timing context must be a nonempty preset ID or null.');
+    }
     this.#values = validateConfig(config);
+    if (context !== this.#context) this.#finishPress();
+    this.#context = context;
     for (const phase of PHASES) this.#renderValue(phase);
+  }
+
+  get activePhase() {
+    return Object.entries(this.#controls).find(([, { picker }]) => picker.matches(':popover-open'))?.[0] ?? null;
   }
 
   /** Open a phase from another control without toggling an already open editor. */
@@ -352,11 +364,13 @@ export class DurationPicker {
     const destination = picker.getBoundingClientRect();
     delete picker.dataset.transferInitializing;
 
-    const duration = readCssMilliseconds(this.#window.getComputedStyle?.(picker), '--picker-slide-duration', SLIDE_DURATION_MS);
+    const style = this.#window.getComputedStyle?.(picker);
+    const duration = readCssMilliseconds(style, '--picker-slide-duration', SLIDE_DURATION_MS);
+    const easing = style?.getPropertyValue('--picker-slide-easing').trim() || SLIDE_EASING;
     const animation = picker.animate?.([
       { left: `${origin.left}px`, top: `${origin.top}px`, width: `${origin.width}px`, height: `${origin.height}px` },
       { left: `${destination.left}px`, top: `${destination.top}px`, width: `${destination.width}px`, height: `${destination.height}px` },
-    ], { duration, easing: 'cubic-bezier(.4, 0, .2, 1)' });
+    ], { duration, easing });
     if (animation) {
       const slide = this.#slide = { controls, animation };
       animation.finished.then(() => {

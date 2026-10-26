@@ -240,8 +240,6 @@ button:disabled, .preset-tile:has(:disabled) {
 .exercise-stage {
   --speaker-offset-x: -5px;
   --speaker-offset-y: -5px;
-  --preview-fade-duration: 1s;
-  --preview-fade-delay: .1s;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--visual-size) 48px auto;
@@ -334,7 +332,8 @@ button:disabled, .preset-tile:has(:disabled) {
   flex-direction: column;
   min-height: 0;
   max-height: 240px;
-  margin-top: 0;
+  margin-top: 3px;
+  padding-bottom: 7px;
 }
 .timing-panel .preset-tiles {
   flex: 1;
@@ -432,6 +431,12 @@ button:disabled, .preset-tile:has(:disabled) {
   z-index: 1;
   overflow: visible;
   pointer-events: none;
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  transform-origin: center;
+  transition: opacity var(--guides-fade-duration, 400ms) ease,
+    transform var(--guides-contract-duration, 500ms) cubic-bezier(.2, .65, .3, 1), visibility 0s;
 }
 .breath-guide circle {
   cx: 50%;
@@ -451,9 +456,26 @@ button:disabled, .preset-tile:has(:disabled) {
   width: calc(var(--orb-size) * var(--breath-large));
   height: calc(var(--orb-size) * var(--breath-large));
 }
-/* Guide markup starts hidden; saved preferences reveal it after initialization. */
-.app-shell:has(#show-breath-guides:not(:checked)) .breath-guide {
+/* Deselecting brings both centered rings into one point; selecting alone flashes. */
+.exercise-stage[data-show-guides="false"] .breath-guide {
+  --guide-exit-fade: min(var(--guides-fade-duration, 400ms), calc(var(--guides-contract-duration, 500ms) * .25));
+  opacity: 0;
   visibility: hidden;
+  transform: scale(0);
+  transition: transform var(--guides-contract-duration, 500ms) cubic-bezier(.55, 0, .9, .45),
+    opacity var(--guide-exit-fade) ease calc(var(--guides-contract-duration, 500ms) - var(--guide-exit-fade)),
+    visibility 0s var(--guides-contract-duration, 500ms);
+}
+.exercise-stage[data-guides-feedback="on"] .breath-guide circle {
+  animation: guide-blink-on var(--guides-blink-duration, 650ms) ease both;
+}
+@keyframes guide-blink-on {
+  0%, 100% { opacity: 1; }
+  35% { opacity: .15; }
+  70% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .breath-guide circle { animation: none !important; }
 }
 .app-shell:has(#show-breath-text:not(:checked)) .phase-caption,
 .app-shell:has(#show-breath-numbers:not(:checked)) .phase-count {
@@ -517,7 +539,7 @@ button:disabled, .preset-tile:has(:disabled) {
   }
 }
 .orb-copy {
-  --count-size: clamp(24px, calc(var(--visual-size) * .24), 68px);
+  --count-size: var(--phase-count-font-size, clamp(24px, calc(var(--visual-size) * .24), 68px));
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -529,7 +551,7 @@ button:disabled, .preset-tile:has(:disabled) {
 .orb-copy > * { grid-area: 1 / 1; }
 .phase-caption {
   position: relative;
-  font-size: var(--text-body);
+  font-size: var(--phase-text-font-size, var(--text-body));
   color: var(--paper);
   transform: translateY(calc(-.5 * var(--count-size) - 50% - 2px));
 }
@@ -544,8 +566,7 @@ button:disabled, .preset-tile:has(:disabled) {
   text-box-edge: cap alphabetic;
   margin: 0;
 }
-.app-shell:has(#show-breath-numbers:not(:checked)) .phase-caption,
-.exercise-stage[data-preview="true"][data-show-time="false"] .phase-caption { transform: none; }
+.exercise-stage[data-show-time="false"] .phase-caption { transform: none; }
 .breathing-visual:not([data-state="idle"])[data-phase="inhale"] .breathing-orb {
   animation-name: breathe-in;
 }
@@ -996,7 +1017,8 @@ fieldset {
 .duration-button > * { position: relative; z-index: 1; }
 .duration-button:disabled { opacity: 1; }
 .phase-track > .phase-step > .duration-button { width: 100%; }
-.phase-time { color: var(--text-control); }
+.phase-label { font-size: var(--timing-label-font-size, 1em); }
+.phase-time { color: var(--text-control); font-size: var(--timing-value-font-size, 1em); }
 .phase-step[aria-current="step"] .phase-time { color: inherit; }
 .duration-button:hover:not(:disabled), .duration-button[aria-expanded="true"] {
   background: var(--surface-selected);
@@ -1194,16 +1216,23 @@ fieldset {
   align-self: start;
   justify-self: start;
   margin: 0;
-  padding: 0 6px 4px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  padding: 0 var(--preview-frame-padding-x, 6px) var(--preview-frame-padding-bottom, 0px);
+  border: var(--preview-border-width, 1px) solid hsl(0 0% var(--preview-border-brightness, 20%));
+  border-radius: var(--preview-border-radius, 6px);
   pointer-events: none;
-  animation: preview-heading-arrive .75s cubic-bezier(.22, 1, .36, 1) calc(var(--panel-slide-duration) / 2) both;
+  animation: preview-heading-arrive var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) calc(var(--panel-slide-duration) / 2) both;
 }
-.preview-heading { padding: 0 6px; background: var(--surface); color: var(--text-control); font-size: clamp(24px, calc(var(--visual-size) * .22 + 8px), 40px); font-weight: 500; line-height: 1.1; }
+.preview-heading { padding: 0 var(--preview-legend-padding-x, 6px); margin-inline: var(--preview-legend-gap, 0px); background: var(--surface); color: var(--text-control); font-size: var(--preview-font-size, clamp(24px, calc(var(--visual-size) * .22 + 8px), 40px)); font-weight: 500; line-height: var(--preview-legend-line-height, .82); }
 @keyframes preview-heading-arrive {
   from { opacity: 0; transform: translateY(-96px); }
   to { opacity: 1; transform: translateY(0); }
+}
+.exercise-stage[data-preview-leaving="true"] .preview-frame {
+  animation: preview-heading-leave var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) both;
+}
+@keyframes preview-heading-leave {
+  from { opacity: var(--preview-exit-opacity, 1); transform: var(--preview-exit-transform, translateY(0)); }
+  to { opacity: 0; transform: translateY(-96px); }
 }
 .preview-sound-button {
   --speaker-size: 48px;
@@ -1221,7 +1250,7 @@ fieldset {
   z-index: 3;
   opacity: var(--speaker-opacity);
   transition: background-color .3s ease, border-color .3s ease, box-shadow .45s ease, color .3s ease;
-  animation: preview-sound-arrive .75s cubic-bezier(.22, 1, .36, 1) calc(var(--panel-slide-duration) / 2) both;
+  animation: preview-sound-arrive var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) calc(var(--panel-slide-duration) / 2) both;
 }
 .preview-sound-button[aria-pressed="true"],
 .preview-sound-button[aria-pressed="true"]:is(:hover, :active) {
@@ -1234,6 +1263,14 @@ fieldset {
 @keyframes preview-sound-arrive {
   from { opacity: 0; transform: translateX(64px); }
   to { opacity: var(--speaker-opacity); transform: translateX(0); }
+}
+.exercise-stage[data-preview-leaving="true"] .preview-sound-button {
+  pointer-events: none;
+  animation: preview-sound-leave var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) both;
+}
+@keyframes preview-sound-leave {
+  from { opacity: var(--preview-exit-opacity, var(--speaker-opacity)); transform: var(--preview-exit-transform, translateX(0)); }
+  to { opacity: 0; transform: translateX(64px); }
 }
 .speaker-icon { width: 32px; height: 32px; }
 .exercise-stage:not([data-sound-cue="true"]) .speaker-waves,
@@ -1259,8 +1296,15 @@ fieldset {
 }
 .exercise-stage[data-preview-paused="true"] #session-button { animation-play-state: paused; }
 .exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields {
-  pointer-events: none;
-  animation: controls-exit-left var(--preview-fade-duration) ease var(--preview-fade-delay) both;
+  opacity: .55;
+  transition: opacity var(--text-fade-duration, 450ms) ease;
+}
+.exercise-stage[data-preview="true"][data-show-timings="false"][data-preview-step="starting"] #timing-fields {
+  animation: controls-exit-left var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1) both;
+}
+.exercise-stage[data-preview="true"][data-show-timings="false"][data-preview-step="breathing"] #timing-fields {
+  transform: translateX(calc(-100vw - 100%));
+  visibility: hidden;
 }
 #practice[data-active-panel="settings"][data-panel-motion] .exercise-stage[data-preview="true"] :is(#session-button, #timing-fields) {
   transform: translateX(0);
@@ -1285,6 +1329,7 @@ fieldset {
 @media (max-height: 800px) {
   .practice-card { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
   .practice-card .preset-options { padding: 6px; }
+  .practice-card .timing-panel > .preset-options { padding-bottom: 3px; }
   .display-controls { gap: 6px; }
   .preset-tiles { gap: 12px; }
 }
@@ -1303,6 +1348,7 @@ fieldset {
   .exercise-stage { padding-top: 4px; }
   .panel-tab { font-size: 14px; line-height: 1.2; padding: 4px; }
   .practice-card :is(.phase-timings, .preset-options) { padding: 4px; }
+  .practice-card .timing-panel > .preset-options { padding-bottom: 1px; }
   .practice-card .duration-button { min-height: 44px; font-size: 15px; line-height: 1.2; gap: 2px; padding-block: 2px; }
   .exercise-stage .phase-timings > legend, .settings-content > fieldset > legend { display: none; }
   .preview-sound-button { --speaker-size: 44px; padding: 7px; }
@@ -1388,13 +1434,25 @@ html:has(body.is-zen) {
 /* Selection feedback and compact action spacing. */
 #session-button .icon-play { border-top-width: 7px; border-bottom-width: 7px; border-left-width: 11px; }
 .preset-tile:has(:checked) :is(.preset-name, .preset-timing) { color: #f3f3f3; }
-#practice #exercise-stage :is(.phase-caption, .phase-count) { display: block; transition: opacity .45s ease, translate .5s cubic-bezier(.22,1,.36,1), visibility 0s; }
+#practice #exercise-stage :is(.phase-caption, .phase-count) { display: block; transition: opacity var(--text-fade-duration, 450ms) ease, visibility 0s; }
 #practice #exercise-stage[data-show-text="false"] .phase-caption,
-#practice #exercise-stage[data-show-time="false"] .phase-count { display: block; opacity: 0; visibility: hidden; translate: 0 7px; transition: opacity .45s ease, translate .5s ease, visibility 0s .45s; }
+#practice #exercise-stage[data-show-time="false"] .phase-count { display: block; opacity: 0; visibility: hidden; transition: opacity var(--text-fade-duration, 450ms) ease, visibility 0s var(--text-fade-duration, 450ms); }
+#practice #exercise-stage .phase-caption {
+  transition: opacity var(--text-fade-duration, 450ms) ease,
+    transform var(--caption-move-duration, 350ms) cubic-bezier(.4, 0, .2, 1),
+    visibility 0s var(--caption-hide-delay, 0ms);
+}
+#practice #exercise-stage[data-show-text="false"] .phase-caption { --caption-hide-delay: var(--text-fade-duration, 450ms); }
+#practice #exercise-stage[data-show-time="false"] .phase-caption {
+  transition: opacity var(--text-fade-duration, 450ms) ease,
+    transform var(--caption-move-duration, 350ms) cubic-bezier(.4, 0, .2, 1) var(--text-fade-duration, 450ms),
+    visibility 0s var(--caption-hide-delay, 0ms);
+}
 :where(#practice:not([data-state="idle"]), .exercise-stage[data-preview="true"]) .phase-step[aria-current] .duration-button::before { content: ""; position: absolute; inset: 0; background: var(--paper); opacity: calc(.14 * var(--timing-reveal)); pointer-events: none; animation: var(--timing-animation-name, hold-fill) var(--phase-duration) linear var(--phase-delay) both, timing-highlight-in min(300ms, calc(var(--phase-duration) * .4)) ease both; }
 .exercise-stage[data-animation="rise"] .phase-step[aria-current] .duration-button::before { clip-path: inset(calc((1 - var(--hold-progress)) * 100%) 0 0); }
 .exercise-stage[data-animation="sweep"] .phase-step[aria-current] .duration-button::before { background: conic-gradient(var(--paper) calc(var(--hold-progress) * 1turn), transparent 0turn); }
-.exercise-stage[data-animation="spread"] .phase-step[aria-current] .duration-button::before { clip-path: circle(calc(var(--hold-progress) * 50%) at 50% 50%); }
+/* A circle percentage uses the normalized diagonal; 70.7107% reaches every card corner. */
+.exercise-stage[data-animation="spread"] .phase-step[aria-current] .duration-button::before { clip-path: circle(calc(var(--hold-progress) * 70.7107%) at 50% 50%); }
 .exercise-stage[data-animation="fade"] .phase-step[aria-current] .duration-button::before { opacity: calc(var(--hold-progress) * .16 * var(--timing-reveal)); }
 @keyframes timing-highlight-in { from { --timing-reveal: 0; } to { --timing-reveal: 1; } }
 #practice[data-state="paused"] .phase-step[aria-current] .duration-button::before,
@@ -1411,5 +1469,5 @@ html:has(body.is-zen) {
   #practice[data-starting="true"]:has(#show-phase-timings:not(:checked)) #timing-fields { animation: none; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
   .exercise-stage[data-preview="true"] #session-button { animation: none !important; transform: translateX(calc(100vw + 100%)); visibility: hidden; }
   .exercise-stage[data-preview="true"]:is([data-preview-step="ready"], [data-preview-step="animation"]) #session-button { transform: translateX(0); visibility: visible; }
-  .exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields { animation: none !important; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
+  .exercise-stage[data-preview="true"][data-show-timings="false"]:is([data-preview-step="starting"], [data-preview-step="breathing"]) #timing-fields { animation: none !important; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
 }

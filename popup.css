@@ -1,7 +1,10 @@
 /* Approved Rise timing-popup motion for the shared app and release builds. */
+:root {
+  --picker-slide-duration: 500ms;
+  --picker-slide-easing: cubic-bezier(.5, 0, .85, .5);
+}
 .duration-picker {
   --picker-step-fade-duration: 260ms;
-  --picker-slide-duration: 500ms;
   background: linear-gradient(to bottom,
     var(--surface-popover) 0 var(--picker-center-top, calc(50% - var(--picker-center-height, 56px) / 2)),
     transparent var(--picker-center-top, calc(50% - var(--picker-center-height, 56px) / 2)) var(--picker-center-bottom, calc(50% + var(--picker-center-height, 56px) / 2)),

@@ -6,7 +6,7 @@ export function setPhaseCaption(element, text, duration = 420) {
   if (!element.ownerDocument?.createElement) { element.textContent = text; return; }
   element.classList.remove('is-changing');
   element.dataset.previousText = previous;
-  element.style.setProperty('--caption-duration', `${duration}ms`);
+  element.style.setProperty('--caption-duration', `var(--caption-fade-duration, ${duration}ms)`);
   const current = element.ownerDocument.createElement('span');
   current.className = 'caption-current';
   current.textContent = text;

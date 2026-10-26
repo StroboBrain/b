@@ -105,7 +105,7 @@ export class BreathingApp {
       onSelect: (id) => this.#selectPreset(id),
       onEdit: () => {
         if (this.#status === 'idle' && !this.#pendingStart && this.#panels.active === 'timing') {
-          this.#durationPicker.open('inhale', { source: this.#elements['preset-tiles'] });
+          this.#durationPicker.open(this.#durationPicker.activePhase ?? 'inhale', { source: this.#elements['preset-tiles'] });
         }
       },
     });
@@ -234,9 +234,8 @@ export class BreathingApp {
 
   #selectPreset(id) {
     if (this.#status !== 'idle' || this.#pendingStart) return;
-    this.#durationPicker.close();
     this.#editor.select(id);
-    if (!this.#refreshPresets()) {
+    if (!this.#refreshPresets({ keepPicker: true })) {
       this.#syncSettings();
       this.#render(this.#session.snapshot);
     }
@@ -264,6 +263,9 @@ export class BreathingApp {
   }
 
   #setPreference(key, value) {
+    if (key === 'showBreathGuides' && this.#preferences[key] !== value) {
+      this.#elements['exercise-stage'].dataset.guidesFeedback = value ? 'on' : 'off';
+    }
     this.#preferences[key] = value;
     this.#syncPreferences();
     try {
@@ -280,13 +282,13 @@ export class BreathingApp {
     this.#storageWarningShown = true;
   }
 
-  /** Restore controls and keep guides hidden until their saved preference is applied. */
+  /** Restore controls; opacity keeps guide toggles visible through their fade. */
   #syncPreferences() {
     for (const [id, preference] of Object.entries(TOGGLE_PREFERENCES)) {
       this.#elements[id].checked = this.#preferences[preference];
     }
     for (const guide of this.#elements['breathing-visual'].querySelectorAll('.breath-guide')) {
-      guide.toggleAttribute('hidden', !this.#preferences.showBreathGuides);
+      guide.removeAttribute('hidden');
     }
     this.#cues.configure(this.#preferences);
     const { holdFeedback } = this.#preferences;
@@ -299,7 +301,8 @@ export class BreathingApp {
 
   #syncTimingsAccessibility() {
     const hidden = !this.#preferences.showPhaseTimings
-      && (Boolean(this.#pendingStart) || this.#status !== 'idle' || this.#panels.active === 'settings');
+      && (Boolean(this.#pendingStart) || this.#status !== 'idle'
+        || ['starting', 'breathing'].includes(this.#elements['exercise-stage'].dataset.previewStep));
     const timings = this.#elements['timing-fields'];
     timings.inert = hidden;
     if (hidden) timings.setAttribute('aria-hidden', 'true');
@@ -383,9 +386,6 @@ export class BreathingApp {
     if (!preview && this.#elements['exercise-stage'].dataset.preview === 'true') this.#sessionView.invalidate();
     this.#preview.setEnabled(preview);
     if (!preview) this.#sessionView.render(snapshot, { inhale: this.#config.inhale });
-    this.#elements['preview-heading'].hidden = !preview;
-    this.#elements['preview-frame'].hidden = !preview;
-    this.#elements['preview-sound-button'].hidden = !preview;
     this.#elements['preset-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
     this.#elements['timing-fields'].disabled = Boolean(this.#pendingStart) || snapshot.status !== 'idle';
     if (!preview) this.#elements['session-button'].disabled = Boolean(this.#pendingStart) || snapshot.status === 'running';
