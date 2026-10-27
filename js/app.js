@@ -300,14 +300,13 @@ export class BreathingApp {
   }
 
   #syncTimingsAccessibility() {
+    const preview = this.#elements['exercise-stage'].dataset.preview === 'true';
     const hidden = !this.#preferences.showPhaseTimings
-      && (Boolean(this.#pendingStart) || this.#status !== 'idle'
-        || ['starting', 'breathing'].includes(this.#elements['exercise-stage'].dataset.previewStep));
+      && (preview || Boolean(this.#pendingStart) || this.#status !== 'idle');
     const timings = this.#elements['timing-fields'];
     timings.inert = hidden;
     if (hidden) timings.setAttribute('aria-hidden', 'true');
     else timings.removeAttribute('aria-hidden');
-    const preview = this.#elements['exercise-stage'].dataset.preview === 'true';
     for (const phase of PHASES) {
       const button = this.#elements[`${phase}-value`];
       if (preview) button.removeAttribute('aria-haspopup');
@@ -333,10 +332,7 @@ export class BreathingApp {
   }
 
   #toggleSession() {
-    if (this.#panels.active === 'settings') {
-      this.#preview.play();
-      return;
-    }
+    if (this.#panels.active === 'settings') return;
     if (this.#pendingStart) return;
     this.#durationPicker.close({ immediately: true });
     this.#presetTiles.cancelInteraction();

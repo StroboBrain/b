@@ -161,9 +161,14 @@ button:disabled, .preset-tile:has(:disabled) {
   --panel-swipe-distance: 48px;
   --hold-choice-size: 80px;
   --hold-sample-size: 36px;
-  --pattern-font-size: clamp(13px, 4cqw, 18px);
-  --pattern-timing-font-size: clamp(11px, 3.3cqw, 15px);
+  --pattern-font-size: 17px;
+  --pattern-timing-font-size: 14px;
+  --phase-count-font-size: 70px;
+  --phase-text-font-size: 14px;
+  --caption-move-duration: 700ms;
   --start-fold-duration: 800ms;
+  --play-enter-duration: 1200ms;
+  --setup-enter-duration: 1200ms;
   min-width: 0;
   min-height: calc(100dvh - 8px);
   background: var(--surface);
@@ -553,7 +558,7 @@ button:disabled, .preset-tile:has(:disabled) {
   position: relative;
   font-size: var(--phase-text-font-size, var(--text-body));
   color: var(--paper);
-  transform: translateY(calc(-.5 * var(--count-size) - 50% - 2px));
+  transform: translateY(calc(-.5 * var(--count-size) - 50% + 1px));
 }
 .phase-count {
   font-size: var(--count-size);
@@ -676,23 +681,25 @@ button:disabled, .preset-tile:has(:disabled) {
   color: var(--ink);
   translate: 0 -6px;
   opacity: 1;
+  animation: controls-enter-right var(--play-enter-duration) cubic-bezier(.4, 0, .2, 1) both;
 }
 #session-button:hover:not(:disabled) { background: var(--paper-hover); }
 #session-button-icon { position: relative; z-index: 1; }
-@keyframes controls-exit-right {
-  from { transform: translateX(0); visibility: visible; }
-  to { transform: translateX(calc(100vw + 100%)); visibility: hidden; }
-}
 @keyframes controls-exit-left {
   from { transform: translateX(0); visibility: visible; }
   to { transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
 }
+@keyframes controls-enter-right {
+  from { transform: translateX(calc(100vw + 100%)); visibility: visible; }
+  to { transform: translateX(0); visibility: visible; }
+}
 #practice[data-starting="true"] #session-button {
   pointer-events: none;
-  animation: controls-exit-right var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1) both;
+  animation: controls-exit-left var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1) both;
 }
 #practice[data-state="running"] #session-button {
-  transform: translateX(calc(100vw + 100%));
+  animation: none;
+  transform: translateX(calc(-100vw - 100%));
   visibility: hidden;
   pointer-events: none;
 }
@@ -963,25 +970,26 @@ fieldset {
 .preset-name {
   position: absolute;
   top: 0;
-  left: 4px;
+  left: 2px;
   transform: translateY(-50%);
-  max-width: calc(100% - 8px);
+  max-width: calc(100% - 4px);
   padding: 1px 3px;
   border-radius: 5px 5px 0 0;
   background: inherit;
   overflow: visible;
-  white-space: normal;
+  white-space: nowrap;
   font-size: var(--pattern-font-size);
   line-height: 1.45;
   font-weight: 500;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   text-transform: lowercase;
   text-align: left;
 }
 .preset-timing {
   max-width: 100%;
   overflow: hidden;
-  white-space: normal;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: var(--pattern-timing-font-size);
   line-height: 1.25;
   text-align: center;
@@ -1206,11 +1214,13 @@ fieldset {
 
 /* Frame only the Preview label, with its legend sitting in the top border. */
 .preview-frame {
+  --preview-label-size: var(--preview-font-size, clamp(24px, calc(var(--visual-size) * .22 + 8px), 40px));
   z-index: 4;
-  background: var(--surface);
+  background: transparent;
   grid-area: 1 / 1;
   position: relative;
-  top: -16px;
+  top: calc(var(--preview-label-size) * .5);
+  left: 8px;
   width: max-content;
   height: auto;
   align-self: start;
@@ -1220,15 +1230,15 @@ fieldset {
   border: var(--preview-border-width, 1px) solid hsl(0 0% var(--preview-border-brightness, 20%));
   border-radius: var(--preview-border-radius, 6px);
   pointer-events: none;
-  animation: preview-heading-arrive var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) calc(var(--panel-slide-duration) / 2) both;
+  animation: preview-heading-arrive var(--preview-enter-duration, var(--preview-motion-duration, 1000ms)) cubic-bezier(.45, 0, .25, 1) calc(var(--panel-slide-duration) / 2) both;
 }
-.preview-heading { padding: 0 var(--preview-legend-padding-x, 6px); margin-inline: var(--preview-legend-gap, 0px); background: var(--surface); color: var(--text-control); font-size: var(--preview-font-size, clamp(24px, calc(var(--visual-size) * .22 + 8px), 40px)); font-weight: 500; line-height: var(--preview-legend-line-height, .82); }
+.preview-heading { padding: 0 var(--preview-legend-padding-x, 6px); margin-inline: var(--preview-legend-gap, 0px); background: transparent; color: var(--text-control); font-size: var(--preview-label-size); font-weight: 500; line-height: var(--preview-legend-line-height, 0); }
 @keyframes preview-heading-arrive {
   from { opacity: 0; transform: translateY(-96px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .exercise-stage[data-preview-leaving="true"] .preview-frame {
-  animation: preview-heading-leave var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) both;
+  animation: preview-heading-leave var(--preview-exit-duration, var(--preview-motion-duration, 1000ms)) cubic-bezier(.45, 0, .25, 1) both;
 }
 @keyframes preview-heading-leave {
   from { opacity: var(--preview-exit-opacity, 1); transform: var(--preview-exit-transform, translateY(0)); }
@@ -1250,7 +1260,7 @@ fieldset {
   z-index: 3;
   opacity: var(--speaker-opacity);
   transition: background-color .3s ease, border-color .3s ease, box-shadow .45s ease, color .3s ease;
-  animation: preview-sound-arrive var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) calc(var(--panel-slide-duration) / 2) both;
+  animation: preview-sound-arrive var(--speaker-enter-duration, var(--preview-motion-duration, 1000ms)) cubic-bezier(.45, 0, .25, 1) calc(var(--panel-slide-duration) / 2) both;
 }
 .preview-sound-button[aria-pressed="true"],
 .preview-sound-button[aria-pressed="true"]:is(:hover, :active) {
@@ -1266,7 +1276,7 @@ fieldset {
 }
 .exercise-stage[data-preview-leaving="true"] .preview-sound-button {
   pointer-events: none;
-  animation: preview-sound-leave var(--preview-motion-duration, 1000ms) cubic-bezier(.45, 0, .25, 1) both;
+  animation: preview-sound-leave var(--speaker-exit-duration, var(--preview-motion-duration, 1000ms)) cubic-bezier(.45, 0, .25, 1) both;
 }
 @keyframes preview-sound-leave {
   from { opacity: var(--preview-exit-opacity, var(--speaker-opacity)); transform: var(--preview-exit-transform, translateX(0)); }
@@ -1283,33 +1293,18 @@ fieldset {
   transition-duration: 80ms;
 }
 .exercise-stage[data-preview="true"] #session-button {
-  transform: translateX(calc(100vw + 100%));
-  visibility: hidden;
-  animation: none;
-}
-.exercise-stage[data-preview="true"]:is([data-preview-step="ready"], [data-preview-step="animation"]) #session-button {
-  transform: translateX(0);
-  visibility: visible;
-}
-.exercise-stage[data-preview="true"][data-preview-step="starting"] #session-button {
-  animation: controls-exit-right var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1) both;
-}
-.exercise-stage[data-preview-paused="true"] #session-button { animation-play-state: paused; }
-.exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields {
-  opacity: .55;
-  transition: opacity var(--text-fade-duration, 450ms) ease;
-}
-.exercise-stage[data-preview="true"][data-show-timings="false"][data-preview-step="starting"] #timing-fields {
+  pointer-events: none;
   animation: controls-exit-left var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1) both;
 }
-.exercise-stage[data-preview="true"][data-show-timings="false"][data-preview-step="breathing"] #timing-fields {
+.exercise-stage[data-preview="true"] #timing-fields {
+  transition: transform var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1), visibility 0s;
+}
+.exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields {
   transform: translateX(calc(-100vw - 100%));
   visibility: hidden;
-}
-#practice[data-active-panel="settings"][data-panel-motion] .exercise-stage[data-preview="true"] :is(#session-button, #timing-fields) {
-  transform: translateX(0);
-  visibility: visible;
-  animation: none;
+  pointer-events: none;
+  transition: transform var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1),
+    visibility 0s var(--start-fold-duration);
 }
 /* Cards keep the same controls and styling across devices. */
 @container practice (max-width: 340px) {
@@ -1383,11 +1378,11 @@ fieldset {
   .settings-panel { --hold-size-limit: clamp(44px, calc(100dvh - var(--panel-footer-space) - 186px), 112px); }
 }
 
-/* Keep opacity intact: setup travels down, play right, and hidden timings left. */
+/* Keep opacity intact: setup travels down; play and hidden timings travel left. */
 .control-frame, .panel-tabs {
   transform: translateY(0);
   visibility: visible;
-  transition: transform var(--start-fold-duration) cubic-bezier(.4, 0, .2, 1), visibility 0s;
+  transition: transform var(--setup-enter-duration) cubic-bezier(.4, 0, .2, 1), visibility 0s;
 }
 .is-zen .control-frame, .is-zen .panel-tabs,
 #practice[data-starting="true"] :is(.control-frame, .panel-tabs) {
@@ -1408,7 +1403,7 @@ fieldset {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-panel-slide], .panel-tabs::before, .preview-heading, .preview-sound-button { animation: none !important; }
+  [data-panel-slide], .panel-tabs::before, .preview-heading, .preview-sound-button, #session-button { animation: none !important; }
   .exercise-stage[data-preview="true"] :is(#session-button, #timing-fields) { animation: none !important; }
   /* Keep the requested timing editor expansion; quiet other transitions. */
   *:not(.duration-picker, .duration-step), *::before, *::after {
@@ -1439,13 +1434,13 @@ html:has(body.is-zen) {
 #practice #exercise-stage[data-show-time="false"] .phase-count { display: block; opacity: 0; visibility: hidden; transition: opacity var(--text-fade-duration, 450ms) ease, visibility 0s var(--text-fade-duration, 450ms); }
 #practice #exercise-stage .phase-caption {
   transition: opacity var(--text-fade-duration, 450ms) ease,
-    transform var(--caption-move-duration, 350ms) cubic-bezier(.4, 0, .2, 1),
+    transform var(--caption-move-duration, 700ms) cubic-bezier(.4, 0, .2, 1),
     visibility 0s var(--caption-hide-delay, 0ms);
 }
 #practice #exercise-stage[data-show-text="false"] .phase-caption { --caption-hide-delay: var(--text-fade-duration, 450ms); }
 #practice #exercise-stage[data-show-time="false"] .phase-caption {
   transition: opacity var(--text-fade-duration, 450ms) ease,
-    transform var(--caption-move-duration, 350ms) cubic-bezier(.4, 0, .2, 1) var(--text-fade-duration, 450ms),
+    transform var(--caption-move-duration, 700ms) cubic-bezier(.4, 0, .2, 1) var(--text-fade-duration, 450ms),
     visibility 0s var(--caption-hide-delay, 0ms);
 }
 :where(#practice:not([data-state="idle"]), .exercise-stage[data-preview="true"]) .phase-step[aria-current] .duration-button::before { content: ""; position: absolute; inset: 0; background: var(--paper); opacity: calc(.14 * var(--timing-reveal)); pointer-events: none; animation: var(--timing-animation-name, hold-fill) var(--phase-duration) linear var(--phase-delay) both, timing-highlight-in min(300ms, calc(var(--phase-duration) * .4)) ease both; }
@@ -1465,9 +1460,8 @@ html:has(body.is-zen) {
   .preview-frame, .preview-sound-button, .toggle-label-off { animation: none !important; }
   .phase-caption.is-changing::before { content: none; }
   .phase-caption.is-changing .caption-current { animation: none; }
-  #practice[data-starting="true"] #session-button { animation: none; transform: translateX(calc(100vw + 100%)); visibility: hidden; }
+  #practice[data-starting="true"] #session-button { animation: none; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
   #practice[data-starting="true"]:has(#show-phase-timings:not(:checked)) #timing-fields { animation: none; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
-  .exercise-stage[data-preview="true"] #session-button { animation: none !important; transform: translateX(calc(100vw + 100%)); visibility: hidden; }
-  .exercise-stage[data-preview="true"]:is([data-preview-step="ready"], [data-preview-step="animation"]) #session-button { transform: translateX(0); visibility: visible; }
-  .exercise-stage[data-preview="true"][data-show-timings="false"]:is([data-preview-step="starting"], [data-preview-step="breathing"]) #timing-fields { animation: none !important; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
+  .exercise-stage[data-preview="true"] #session-button { animation: none !important; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
+  .exercise-stage[data-preview="true"][data-show-timings="false"] #timing-fields { animation: none !important; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
 }

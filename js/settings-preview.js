@@ -8,7 +8,6 @@ import { readCssMilliseconds } from './css-time.js';
 
 const FLASH_DURATION_MS = 1500;
 const PLAY_EXIT_MS = 800;
-const ANIMATION_DEMO_MS = 2000;
 // First pulse: 550ms. Rest: 150ms. Second, slower pulse: 800ms.
 const FLASH_OFFSETS = [0, 275 / 1500, 550 / 1500, 700 / 1500, 1100 / 1500, 1];
 
@@ -24,7 +23,6 @@ export class SettingsPreview {
   #count;
   #soundButton;
   #playButton;
-  #now;
   #onToggleSound;
   #preferences = { ...DEFAULT_PREFERENCES };
   #enabled = false;
@@ -42,6 +40,7 @@ export class SettingsPreview {
   #observer;
   #practice;
   #animationDemo = null;
+  #timingDemo = null;
   #controlsExitTimer = null;
 
   constructor({ document, window, container, onToggleSound = () => {},
@@ -56,7 +55,6 @@ export class SettingsPreview {
     }
     this.#document = document;
     this.#window = window;
-    this.#now = now;
     this.#container = container;
     this.#practice = container.closest?.('#practice');
     this.#onToggleSound = onToggleSound;
@@ -75,7 +73,9 @@ export class SettingsPreview {
       onChange: snapshot => {
         if (!this.#enabled) return;
         const cycleDuration = PHASES.reduce((total, phase) => total + Math.round(this.#config[phase] * 1000), 0);
-        if (snapshot.status === 'running' && snapshot.sessionElapsedMs >= cycleDuration) this.#showReady();
+        const demoPhase = this.#timingDemo ?? (this.#animationDemo ? 'inhale' : null);
+        const duration = demoPhase ? Math.round(this.#config[demoPhase] * 1000) : cycleDuration;
+        if (snapshot.status === 'running' && snapshot.sessionElapsedMs >= duration) this.#showReady();
         else this.#renderPreview(snapshot);
         this.#syncPlayButton();
       } });
@@ -87,7 +87,7 @@ export class SettingsPreview {
     this.#listen(this.#track, 'click', event => {
       const button = event.target.closest?.('.duration-button');
       if (button?.closest('.phase-track') === this.#track && PHASES.includes(button.dataset.field)
-        && !button.matches(':disabled')) this.pulse();
+        && !button.matches(':disabled')) this.previewTiming(button.dataset.field);
     });
     this.#listen(document, 'visibilitychange', () => {
       if (document.hidden) {
@@ -133,13 +133,16 @@ export class SettingsPreview {
       if (changed) {
         this.#showReady();
       }
-      else this.#renderPreview(this.#animationDemo ? this.#demoSnapshot() : this.#driver.snapshot);
+      else this.#renderPreview(this.#driver.snapshot);
+      this.#syncPlayButton();
     }
     if (!preferences.soundCue) this.#stopSound();
     this.#syncSoundButton();
   }
 
   #renderPreview(snapshot) {
+    // The engine's first inhale supplies the clock for an isolated timing demo.
+    if (this.#timingDemo && snapshot.status !== 'idle') snapshot = { ...snapshot, phase: this.#timingDemo };
     const { holdFeedback } = this.#preferences;
     this.#visual.dataset.holdFeedback = holdFeedback;
     const phase = snapshot.phase ?? 'inhale';
@@ -172,12 +175,18 @@ export class SettingsPreview {
     if (!enabled) {
       this.#clearCycleTimer();
       this.#animationDemo = null;
+      this.#timingDemo = null;
       this.#stopSound();
       this.#stopPulse();
       this.#driver.stop();
       this.#visualKey = '';
       delete this.#container.dataset.previewStep;
       delete this.#container.dataset.previewPaused;
+      if (this.#playButton) {
+        this.#playButton.inert = false;
+        this.#playButton.removeAttribute('aria-hidden');
+      }
+      this.#syncPlayButton();
     }
     this.#syncSoundButton();
   }
@@ -206,8 +215,11 @@ export class SettingsPreview {
       control.style.setProperty('--preview-exit-opacity', style?.opacity ?? '1');
     }
     this.#container.dataset.previewLeaving = 'true';
-    this.#controlsExitTimer = this.#window.setTimeout(hide,
-      readCssMilliseconds(this.#window.getComputedStyle?.(this.#container), '--preview-motion-duration', 1000));
+    const style = this.#window.getComputedStyle?.(this.#container);
+    const legacyDuration = readCssMilliseconds(style, '--preview-motion-duration', 1000);
+    const duration = Math.max(readCssMilliseconds(style, '--preview-exit-duration', legacyDuration),
+      readCssMilliseconds(style, '--speaker-exit-duration', legacyDuration));
+    this.#controlsExitTimer = this.#window.setTimeout(hide, duration);
   }
 
   #syncAvailability() {
@@ -222,17 +234,17 @@ export class SettingsPreview {
   }
 
   #syncPlayButton() {
-    if (this.#enabled && this.#playButton) this.#playButton.disabled = !this.#available()
-      || !['ready', 'animation'].includes(this.#container.dataset.previewStep);
-    if (this.#enabled) {
-      const timings = this.#container.querySelector('#timing-fields');
-      if (timings) {
-        const hidden = !this.#preferences.showPhaseTimings
-          && ['starting', 'breathing'].includes(this.#container.dataset.previewStep);
-        timings.inert = hidden;
-        if (hidden) timings.setAttribute('aria-hidden', 'true');
-        else timings.removeAttribute('aria-hidden');
-      }
+    if (this.#enabled && this.#playButton) {
+      this.#playButton.disabled = true;
+      this.#playButton.inert = true;
+      this.#playButton.setAttribute('aria-hidden', 'true');
+    }
+    const timings = this.#container.querySelector('#timing-fields');
+    if (timings) {
+      const hidden = this.#enabled && !this.#preferences.showPhaseTimings;
+      timings.inert = hidden;
+      if (hidden) timings.setAttribute('aria-hidden', 'true');
+      else timings.removeAttribute('aria-hidden');
     }
   }
 
@@ -252,6 +264,7 @@ export class SettingsPreview {
   #showReady() {
     this.#clearCycleTimer();
     this.#animationDemo = null;
+    this.#timingDemo = null;
     this.#container.dataset.previewStep = 'ready';
     this.#driver.stop();
     this.#syncPlayButton();
@@ -262,9 +275,10 @@ export class SettingsPreview {
     if (!this.#available() || !['ready', 'animation'].includes(this.#container.dataset.previewStep)) return false;
     this.#clearCycleTimer();
     this.#animationDemo = null;
+    this.#timingDemo = null;
+    this.#stopPulse();
     this.#container.dataset.previewStep = 'starting';
     this.#driver.stop();
-    this.pulse();
     this.#syncPlayButton();
     this.#cycleTimer = this.#window.setTimeout(() => {
       this.#cycleTimer = null;
@@ -275,10 +289,20 @@ export class SettingsPreview {
     return true;
   }
 
-  #demoSnapshot() {
-    const elapsed = Math.min(ANIMATION_DEMO_MS, this.#now() - this.#animationDemo.startedAt);
-    return { status: 'running', phase: 'holdIn', phaseStartedAtMs: this.#animationDemo.startedAt,
-      phaseDurationMs: ANIMATION_DEMO_MS, phaseElapsedMs: elapsed, phaseRemainingMs: ANIMATION_DEMO_MS - elapsed };
+  /** Demonstrate the selected timing once; zero holds acknowledge without running. */
+  previewTiming(phase) {
+    if (!PHASES.includes(phase)) throw new RangeError('Preview timing must name a breathing phase.');
+    const acknowledged = this.pulse();
+    if (!this.#available()) return acknowledged;
+    if (this.#config[phase] === 0) return true;
+    this.#clearCycleTimer();
+    this.#animationDemo = null;
+    this.#timingDemo = phase;
+    this.#container.dataset.previewStep = 'breathing';
+    this.#visualKey = '';
+    this.#driver.start({ ...this.#config, inhale: this.#config[phase] });
+    this.#syncPlayButton();
+    return true;
   }
 
   /** Replay the selected Animation without starting the breathing rhythm. */
@@ -290,15 +314,13 @@ export class SettingsPreview {
 
   #demoAnimation() {
     this.#clearCycleTimer();
-    this.#animationDemo = { startedAt: this.#now() };
+    this.#stopPulse();
+    this.#animationDemo = true;
+    this.#timingDemo = null;
     this.#container.dataset.previewStep = 'animation';
     this.#visualKey = '';
-    this.#renderPreview(this.#demoSnapshot());
+    this.#driver.start(this.#config);
     this.#syncPlayButton();
-    this.#cycleTimer = this.#window.setTimeout(() => {
-      this.#cycleTimer = null;
-      this.#showReady();
-    }, ANIMATION_DEMO_MS);
   }
 
   /** Two complete pulses per timing-card press; subsequent presses wait for completion. */
@@ -317,7 +339,7 @@ export class SettingsPreview {
       }, () => { if (this.#pendingPulse === pending) this.#pendingPulse = null; });
       return true;
     }
-    // Keep the legend's opaque cutout stationary over the fieldset border.
+    // Keep the transparent legend stationary while it flashes over the animation.
     const rest = { opacity: 1 };
     const peak = { opacity: .45 };
     const duration = readCssMilliseconds(this.#window.getComputedStyle?.(this.#container),
@@ -356,6 +378,7 @@ export class SettingsPreview {
     if (this.#controlsExitTimer !== null) this.#window.clearTimeout(this.#controlsExitTimer);
     this.#controlsExitTimer = null;
     this.#animationDemo = null;
+    this.#timingDemo = null;
     this.#observer?.disconnect();
     this.#driver.stop();
     this.#stopSound();
