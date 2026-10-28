@@ -1,5 +1,6 @@
 import { phaseLabel, spokenDuration } from './phase-labels.js';
 import { setPhaseCaption } from './phase-caption.js';
+import { setPhaseCount } from './phase-count.js';
 import { applyPhaseMotion } from './phase-motion.js';
 
 /** Renders engine snapshots; CSS owns motion and the layout of each state. */
@@ -40,8 +41,7 @@ export class SessionView {
 
     // Keep an initial fractional duration until its first whole-second boundary.
     const remainingSeconds = Math.min(snapshot.phaseDurationMs / 1000, Math.ceil(snapshot.phaseRemainingMs / 1000));
-    const count = active ? String(remainingSeconds) : String(inhale);
-    if (ui['phase-count'].textContent !== count) ui['phase-count'].textContent = count;
+    setPhaseCount(ui['phase-count'], active ? remainingSeconds : inhale);
     const announcementKey = active ? visualKey : 'idle';
     if (announcementKey !== this.#lastAnnouncementKey) {
       this.#lastAnnouncementKey = announcementKey;

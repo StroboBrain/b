@@ -125,7 +125,11 @@ export class PanelSwitcher {
       if (!this.#motion?.pending.delete(event.target)) return;
       if (this.#motion.pending.size === 0) this.#finishMotion();
     });
-    this.#listen(document, 'visibilitychange', () => { if (document.hidden) this.#interrupt(); });
+    this.#listen(document, 'visibilitychange', () => {
+      if (document.hidden) this.#interrupt();
+      else this.#restoreStartPanel();
+    });
+    this.#listen(window, 'pageshow', () => this.#restoreStartPanel());
     for (const type of ['blur', 'resize', 'pagehide']) this.#listen(window, type, () => this.#interrupt());
     if (typeof window.visualViewport?.addEventListener === 'function') {
       this.#listen(window.visualViewport, 'resize', () => this.#interrupt());
@@ -183,6 +187,21 @@ export class PanelSwitcher {
   }
 
   #otherPanel() { return this.#active === 'timing' ? 'settings' : 'timing'; }
+
+  /** Installed windows can reopen in memory without loading the manifest start URL. */
+  #restoreStartPanel() {
+    if (this.#disposed || this.#document.hidden || this.#active === 'timing' || !this.#canSwitch()) return;
+    const installed = this.#window.navigator?.standalone === true
+      || ['fullscreen', 'standalone', 'minimal-ui'].some(mode => this.#window.matchMedia(`(display-mode: ${mode})`).matches);
+    if (!installed) return;
+    const focusWillHide = this.#panels.settings.contains?.(this.#document.activeElement);
+    this.#interrupt();
+    this.#suppressClick = false;
+    this.#active = 'timing';
+    this.#render();
+    if (focusWillHide) this.#tabs.timing.focus({ preventScroll: true });
+    this.#onChange('timing');
+  }
 
   #available() {
     return !this.#disposed && !this.#document.hidden && !this.#document.body?.classList.contains('is-zen')

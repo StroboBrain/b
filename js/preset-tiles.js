@@ -32,6 +32,8 @@ export class PresetTiles {
   #heldRelease = null;
   #disposed = false;
   #selectedId;
+  #resizeObserver;
+  #timings = new Set();
 
   constructor({ document, container, onSelect, onEdit = () => {}, window = globalThis } = {}) {
     if (typeof document?.createElement !== 'function' || typeof container?.replaceChildren !== 'function'
@@ -45,6 +47,11 @@ export class PresetTiles {
     this.#onSelect = onSelect;
     this.#onEdit = onEdit;
     this.#window = window;
+    if (typeof window.ResizeObserver === 'function') {
+      this.#resizeObserver = new window.ResizeObserver(entries => {
+        for (const { target } of entries) this.#syncWrapping(target);
+      });
+    }
     this.#listen('change', ({ target }) => {
       if (target.matches('input[type="radio"]') && target.checked && !target.matches(':disabled')
         && this.#tiles.has(target.value)) {
@@ -76,6 +83,7 @@ export class PresetTiles {
     }
     if (typeof window.addEventListener === 'function' && typeof window.removeEventListener === 'function') {
       for (const type of ['blur', 'pagehide']) this.#listen(type, () => this.cancelInteraction(), window);
+      if (!this.#resizeObserver) this.#listen('resize', () => this.#syncAllWrapping(), window);
     }
   }
 
@@ -104,20 +112,56 @@ export class PresetTiles {
       const name = patternName(preset.config, this.#slotNumbers.get(preset.id));
       const input = tile.querySelector('input');
       tile.querySelector('.preset-name').textContent = name;
-      tile.querySelector('.preset-timing').textContent = PHASES.map((phase) => preset.config[phase]).join(' · ');
+      const timing = tile.querySelector('.preset-timing');
+      const values = PHASES.map(phase => String(preset.config[phase]).split('.'));
+      for (const [index, number] of timing.querySelectorAll('.preset-timing-number').entries()) {
+        const [whole, fraction] = values[index];
+        number.querySelector('.preset-timing-whole').textContent = whole;
+        number.querySelector('.preset-timing-fraction').textContent = fraction === undefined ? '' : `.${fraction}`;
+      }
+      // Inhale/exhale share one column, and the two holds share the other.
+      const columns = [];
+      for (const [index, column] of ['first', 'second'].entries()) {
+        const rows = [values[index], values[index + 2]];
+        const whole = Math.max(...rows.map(([digits]) => digits.length));
+        const fraction = rows.some(([, digits]) => digits !== undefined) ? 1.5 : 0;
+        columns.push({ whole, fraction });
+        timing.style.setProperty(`--preset-${column}-whole`, `${whole}ch`);
+        timing.style.setProperty(`--preset-${column}-fraction`, `${fraction}ch`);
+      }
+      // Balance the painted dots between visible digits without moving their aligned columns.
+      const separatorShift = (left, right) => {
+        const unusedFraction = values[left][1] === undefined ? columns[left % 2].fraction : 0;
+        const leadingSpace = columns[right % 2].whole - values[right][0].length;
+        return `${(leadingSpace - unusedFraction) / 2}ch`;
+      };
+      for (const [index, pair] of timing.querySelectorAll('.preset-timing-pair').entries()) {
+        pair.querySelector('.preset-timing-separator').style.setProperty('--preset-separator-shift', separatorShift(index * 2, index * 2 + 1));
+        if (index === 0) pair.querySelector('.preset-timing-join').style.setProperty('--preset-separator-shift', separatorShift(1, 2));
+      }
+      timing.dataset.long = String(timing.querySelector('.preset-timing-pair').textContent.length > 12);
       const description = PHASES.map((phase) => preset.config[phase] === 0
         ? `no ${phaseDescription(phase)}` : `${phaseDescription(phase)} ${spokenDuration(preset.config[phase])}`).join(', ');
       input.setAttribute('aria-label', `${name}: ${description}`);
       next.set(preset.id, tile);
     }
+    for (const [id, tile] of this.#tiles) {
+      if (next.has(id)) continue;
+      const timing = tile.querySelector('.preset-timing');
+      this.#resizeObserver?.unobserve(timing);
+      this.#timings.delete(timing);
+    }
     this.#tiles = next;
     if (reordered) this.#container.replaceChildren(...next.values());
     this.#checkOnly(selectedId);
+    this.#syncAllWrapping();
   }
 
   dispose() {
     this.#disposed = true;
     this.cancelInteraction();
+    this.#resizeObserver?.disconnect();
+    this.#timings.clear();
     for (const remove of this.#listeners) remove();
     this.#listeners = [];
   }
@@ -132,6 +176,16 @@ export class PresetTiles {
   #listen(type, listener, target = this.#container) {
     target.addEventListener(type, listener);
     this.#listeners.push(() => target.removeEventListener(type, listener));
+  }
+
+  #syncAllWrapping() {
+    for (const timing of this.#timings) this.#syncWrapping(timing);
+  }
+
+  #syncWrapping(timing) {
+    if (this.#disposed || !this.#timings.has(timing) || timing.getBoundingClientRect().width <= 0) return;
+    const [first, second] = timing.querySelectorAll('.preset-timing-pair');
+    timing.dataset.wrapped = String(Math.abs(second.getBoundingClientRect().top - first.getBoundingClientRect().top) > .5);
   }
 
   #tileFor(target) {
@@ -227,7 +281,35 @@ export class PresetTiles {
     const timing = this.#document.createElement('span');
     timing.className = 'preset-timing';
     timing.setAttribute('aria-hidden', 'true');
+    for (let index = 0; index < 2; index++) {
+      const pair = this.#document.createElement('span');
+      pair.className = 'preset-timing-pair';
+      for (let column = 0; column < 2; column++) {
+        if (column) {
+          const separator = this.#document.createElement('span');
+          separator.className = 'preset-timing-separator';
+          separator.textContent = ' · ';
+          pair.append(separator);
+        }
+        const number = this.#document.createElement('span');
+        number.className = 'preset-timing-number';
+        number.dataset.phase = PHASES[index * 2 + column];
+        for (const part of ['whole', 'fraction']) {
+          const span = this.#document.createElement('span');
+          span.className = `preset-timing-${part}`;
+          number.append(span);
+        }
+        pair.append(number);
+      }
+      const join = this.#document.createElement('span');
+      join.className = 'preset-timing-join';
+      join.textContent = index === 0 ? ' · ' : '';
+      pair.append(join);
+      timing.append(pair);
+    }
     tile.append(input, name, timing);
+    this.#timings.add(timing);
+    this.#resizeObserver?.observe(timing);
     return tile;
   }
 }

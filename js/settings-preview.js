@@ -3,6 +3,7 @@ import { SessionDriver } from './session-driver.js';
 import { DEFAULT_PREFERENCES } from './preset-store.js';
 import { formatDuration, phaseLabel } from './phase-labels.js';
 import { setPhaseCaption } from './phase-caption.js';
+import { setPhaseCount } from './phase-count.js';
 import { applyPhaseMotion } from './phase-motion.js';
 import { readCssMilliseconds } from './css-time.js';
 
@@ -153,8 +154,8 @@ export class SettingsPreview {
         orb: this.#visual.querySelector('.breathing-orb'), fill: this.#visual.querySelector('.hold-fill') }, snapshot);
       setPhaseCaption(this.#caption, phaseLabel(phase), Math.min(420, snapshot.phaseDurationMs * .6 || 420));
     }
-    this.#count.textContent = snapshot.status === 'idle' ? String(this.#config.inhale)
-      : String(Math.min(snapshot.phaseDurationMs / 1000, Math.ceil(snapshot.phaseRemainingMs / 1000)));
+    setPhaseCount(this.#count, snapshot.status === 'idle' ? this.#config.inhale
+      : Math.min(snapshot.phaseDurationMs / 1000, Math.ceil(snapshot.phaseRemainingMs / 1000)));
     for (const step of this.#track.children) {
       step.querySelector('.phase-time').textContent = formatDuration(this.#config[step.dataset.phase]);
       step.classList.toggle('is-skipped', this.#config[step.dataset.phase] === 0);
