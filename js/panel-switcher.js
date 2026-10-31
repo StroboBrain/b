@@ -182,15 +182,7 @@ export class PanelSwitcher {
     const focusWillHide = this.#panels[previous].contains?.(focus);
     this.#active = name;
     this.#cancel();
-    const duration = this.#slideDuration();
-    if (!this.#reducedMotion.matches && duration > 0) {
-      this.#motion = { outgoing: previous, animationName: `panel-enter-${direction}`,
-        pending: new Set([this.#panels[name]]) };
-      this.#root.dataset.panelMotion = direction;
-      // animationend completes normal transitions; this also settles hidden
-      // documents or styles that no longer produce an animation event.
-      this.#motionTimer = this.#window.setTimeout(() => this.#finishMotion(), duration + 80);
-    }
+    this.#beginMotion(previous, direction);
     this.#render();
     if (focusWillHide) this.#tabs[name].focus({ preventScroll: true });
     this.#onChange(name);
@@ -238,8 +230,8 @@ export class PanelSwitcher {
     for (const name of PANEL_NAMES) {
       const selected = name === this.#active;
       const element = this.#panels[name];
-      element.hidden = !selected && this.#motion?.outgoing !== name;
-      element.inert = !selected;
+      element.hidden = !selected && this.#motion?.outgoing !== name && !this.#tabDrag?.moved;
+      element.inert = !selected || Boolean(this.#tabDrag?.moved);
       if (selected) element.removeAttribute('aria-hidden');
       else element.setAttribute('aria-hidden', 'true');
       if (this.#motion) element.dataset.panelSlide = selected ? 'incoming' : 'outgoing';
@@ -263,6 +255,10 @@ export class PanelSwitcher {
     }
     drag.offset = Math.max(0, Math.min(drag.travel, drag.origin + dx));
     this.#tabStrip.style.setProperty('--panel-drag-offset', `${drag.offset}px`);
+    const progress = drag.offset / drag.travel;
+    this.#panels.timing.style.setProperty('--panel-slide-start', `calc(${-100 * progress}% - var(--panel-travel-gap) * ${progress})`);
+    this.#panels.settings.style.setProperty('--panel-slide-start', `calc(${100 * (1 - progress)}% + var(--panel-travel-gap) * ${1 - progress})`);
+    this.#render();
     if (event.cancelable) event.preventDefault();
   }
 
@@ -278,9 +274,16 @@ export class PanelSwitcher {
     if (!drag.moved) return;
     this.#suppressClick = true;
     const destination = drag.offset >= drag.travel / 2 ? 'settings' : 'timing';
-    if (this.show(destination)) {
+    const changed = this.#active !== destination;
+    const focusWillHide = changed && this.#panels[this.#active].contains?.(this.#document.activeElement);
+    this.#active = destination;
+    this.#beginMotion(this.#otherPanel(), destination === 'settings' ? 'left' : 'right');
+    if (this.#motion) {
       this.#tabStrip.style.setProperty('--panel-indicator-start', `${drag.offset}px`);
-    }
+    } else this.#clearPanelStarts();
+    this.#render();
+    if (focusWillHide) this.#tabs[destination].focus({ preventScroll: true });
+    if (changed) this.#onChange(destination);
     if (event.cancelable) event.preventDefault();
   }
 
@@ -292,6 +295,10 @@ export class PanelSwitcher {
     this.#releaseCapture(drag);
     delete this.#root.dataset.panelDragging;
     this.#tabStrip?.style?.removeProperty('--panel-drag-offset');
+    if (drag?.moved) {
+      this.#clearPanelStarts();
+      this.#render();
+    }
   }
 
   #releaseCapture(drag) {
@@ -311,12 +318,28 @@ export class PanelSwitcher {
     return pixels >= 32 && pixels <= 120 ? pixels : SWIPE_DISTANCE_PX;
   }
 
+  #beginMotion(outgoing, direction) {
+    const duration = this.#slideDuration();
+    if (this.#reducedMotion.matches || duration <= 0) return;
+    this.#motion = { outgoing, animationName: `panel-enter-${direction}`,
+      pending: new Set([this.#panels[this.#active]]) };
+    this.#root.dataset.panelMotion = direction;
+    // animationend completes normal transitions; this also settles hidden
+    // documents or styles that no longer produce an animation event.
+    this.#motionTimer = this.#window.setTimeout(() => this.#finishMotion(), duration + 80);
+  }
+
+  #clearPanelStarts() {
+    for (const panel of Object.values(this.#panels)) panel.style?.removeProperty('--panel-slide-start');
+  }
+
   #finishMotion() {
     if (!this.#motion) return;
     this.#window.clearTimeout(this.#motionTimer);
     this.#motion = null;
     delete this.#root.dataset.panelMotion;
     this.#tabStrip?.style?.removeProperty('--panel-indicator-start');
+    this.#clearPanelStarts();
     this.#render();
   }
 

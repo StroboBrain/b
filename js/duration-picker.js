@@ -108,7 +108,7 @@ export class DurationPicker {
     this.#listen(container, 'click', (event) => this.#click(event));
     this.#listen(container, 'dblclick', (event) => {
       const controls = this.#controlsForTarget(event.target);
-      if (!controls?.picker.matches(':popover-open')) return;
+      if (!controls?.picker.matches(':popover-open') || event.target?.closest?.('.duration-step')) return;
       event.preventDefault();
       this.close();
       controls.value.focus({ preventScroll: true });
@@ -276,11 +276,11 @@ export class DurationPicker {
     return picker && Object.values(this.#controls).find(controls => controls.picker === picker);
   }
 
-  /** A second nearby tap dismisses before its adjustment or trailing click can run. */
+  /** Nearby taps dismiss the popup surface; adjustment buttons accept every press. */
   #startTap(event) {
     if (event.button !== 0 || event.isPrimary === false) return false;
     const controls = this.#controlsForTarget(event.target);
-    if (!controls?.picker.matches(':popover-open')) {
+    if (!controls?.picker.matches(':popover-open') || event.target?.closest?.('.duration-step')) {
       this.#tapPress = this.#lastTap = null;
       return false;
     }

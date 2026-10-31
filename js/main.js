@@ -1,6 +1,7 @@
 import { BreathingApp } from './app.js';
 import { ViewportLayout } from './viewport-layout.js';
 import { PortraitOrientation } from './portrait-orientation.js';
+import { GuideLayout } from './guide-layout.js';
 
 const appShell = document.getElementById('app-shell');
 
@@ -11,6 +12,7 @@ try {
   // viewport measurement in this same task, before the browser can paint.
   appShell.hidden = false;
   new ViewportLayout();
+  new GuideLayout();
   new PortraitOrientation();
 } catch (error) {
   if (appShell) appShell.hidden = true;
