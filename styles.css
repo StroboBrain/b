@@ -577,8 +577,10 @@ button:disabled, .preset-tile:has(:disabled) {
 .phase-caption {
   position: relative;
   font-size: var(--phase-text-font-size, var(--text-body));
+  line-height: 1.4;
   color: var(--paper);
-  transform: translateY(calc(-.5 * var(--count-size) - 50% + 1px));
+  /* Keep the destination steady while the displayed font changes size. */
+  transform: translateY(calc(-.5 * var(--count-size) - .7 * var(--phase-text-font-size, var(--text-body)) + 1px));
 }
 .phase-count {
   position: relative;
@@ -1327,14 +1329,15 @@ fieldset {
   to { opacity: 0; transform: translateY(-96px); }
 }
 .preview-sound-button {
-  --speaker-size: 64px;
+  --speaker-size: 80px;
   --speaker-opacity: .64;
   border-radius: 6px;
   position: relative;
   grid-area: 1 / 1;
   align-self: end;
-  justify-self: center;
-  left: calc(min(calc(var(--visual-size) * var(--orb-ratio) * var(--breath-large) / 2 + var(--speaker-size) / 2), calc(50cqw - var(--speaker-size) / 2)) + var(--speaker-offset-x));
+  justify-self: end;
+  /* Keep the existing -5px Dev default aligned with the timing box edge. */
+  left: calc(var(--speaker-offset-x) + 5px);
   margin: 0;
   margin-bottom: calc(var(--visual-size) * (1 - var(--orb-ratio) * var(--breath-large)) / 2 - var(--speaker-offset-y));
   width: var(--speaker-size);
@@ -1426,7 +1429,7 @@ fieldset {
   .practice-card .timing-panel > .preset-options { padding-bottom: 1px; }
   .practice-card .duration-button { min-height: 44px; font-size: 15px; line-height: 1.2; gap: 2px; padding-block: 2px; }
   .exercise-stage .phase-timings > legend, .settings-content > fieldset > legend { display: none; }
-  .preview-sound-button { --speaker-size: 60px; min-height: 48px; padding: 4px 5px; gap: 4px; }
+  .preview-sound-button { --speaker-size: 76px; min-height: 48px; padding: 4px 5px; gap: 4px; }
   .preview-sound-button .speaker-icon { width: 36px; height: 36px; }
   .preset-options > legend { font-size: 14px; line-height: 1.2; }
   .preset-tiles { gap: 8px; }
@@ -1512,26 +1515,32 @@ html:has(body.is-zen) {
 #practice #exercise-stage :is(.phase-caption, .phase-count) { display: block; transition: opacity var(--text-fade-duration, 450ms) ease, visibility 0s; }
 #practice #exercise-stage[data-show-text="false"] .phase-caption,
 #practice #exercise-stage[data-show-time="false"] .phase-count { display: block; opacity: 0; visibility: hidden; transition: opacity var(--text-fade-duration, 450ms) ease, visibility 0s var(--text-fade-duration, 450ms); }
+#practice #exercise-stage[data-show-time="false"] .phase-count {
+  transition: opacity var(--text-fade-duration, 450ms) ease-in-out, visibility 0s var(--text-fade-duration, 450ms);
+}
 #practice #exercise-stage[data-show-time="true"][data-show-text="true"] .phase-count {
-  transition: opacity var(--text-fade-duration, 450ms) ease calc(var(--caption-grow-duration, 300ms) + var(--caption-move-duration, 700ms)), visibility 0s;
+  transition: opacity var(--text-fade-duration, 450ms) ease-in-out calc(var(--caption-grow-duration, 300ms) + var(--caption-move-duration, 700ms)), visibility 0s;
 }
 #practice #exercise-stage .phase-caption {
   transition: opacity var(--text-fade-duration, 450ms) ease,
-    transform var(--caption-move-duration, 700ms) cubic-bezier(.4, 0, .2, 1) var(--caption-grow-duration, 300ms),
-    font-size var(--caption-grow-duration, 300ms) cubic-bezier(.4, 0, .2, 1),
+    transform var(--caption-move-duration, 700ms) cubic-bezier(.4, 0, .6, 1) var(--caption-grow-duration, 300ms),
+    font-size var(--caption-grow-duration, 300ms) cubic-bezier(.4, 0, .6, 1),
     visibility 0s var(--caption-hide-delay, 0ms);
 }
 #practice #exercise-stage[data-show-text="false"] .phase-caption { --caption-hide-delay: var(--text-fade-duration, 450ms); }
 #practice #exercise-stage[data-show-time="false"] .phase-caption {
   font-size: calc(var(--phase-text-font-size, var(--text-body)) * 1.6);
+  /* Fade digits, move down, then grow; returning to digits runs those steps in reverse. */
+  transition: opacity var(--text-fade-duration, 450ms) ease,
+    transform var(--caption-move-duration, 700ms) cubic-bezier(.4, 0, .6, 1) var(--text-fade-duration, 450ms),
+    font-size var(--caption-grow-duration, 300ms) cubic-bezier(.4, 0, .6, 1) calc(var(--text-fade-duration, 450ms) + var(--caption-move-duration, 700ms)),
+    visibility 0s var(--caption-hide-delay, 0ms);
+}
+#practice #exercise-stage[data-show-time="false"][data-show-text="false"] .phase-caption {
+  /* Hidden instructions can settle immediately so their next reveal fades in at center. */
   transition: opacity var(--text-fade-duration, 450ms) ease,
     visibility 0s var(--caption-hide-delay, 0ms);
 }
-#practice #exercise-stage[data-show-time="false"][data-show-text="true"] .phase-caption {
-  /* Put the larger label in place while the digits fade, then reveal it without moving. */
-  animation: caption-center-in var(--text-fade-duration, 450ms) ease var(--text-fade-duration, 450ms) both;
-}
-@keyframes caption-center-in { from { opacity: 0; } to { opacity: 1; } }
 :where(#practice:not([data-state="idle"]), .exercise-stage[data-preview="true"]) .phase-step[aria-current] .duration-button::before { content: ""; position: absolute; inset: 0; background: var(--paper); opacity: calc(.14 * var(--timing-reveal)); pointer-events: none; animation: var(--timing-animation-name, hold-fill) var(--phase-duration) linear var(--phase-delay) both, timing-highlight-in min(300ms, calc(var(--phase-duration) * .4)) ease both; }
 .exercise-stage[data-animation="rise"] .phase-step[aria-current] .duration-button::before { clip-path: inset(calc((1 - var(--hold-progress)) * 100%) 0 0); }
 .exercise-stage[data-animation="sweep"] .phase-step[aria-current] .duration-button::before { background: conic-gradient(var(--paper) calc(var(--hold-progress) * 1turn), transparent 0turn); }
@@ -1547,7 +1556,6 @@ html:has(body.is-zen) {
 @keyframes caption-in { from, 40% { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .preview-frame, .preview-sound-button, .toggle-label-off { animation: none !important; }
-  #practice #exercise-stage[data-show-time="false"][data-show-text="true"] .phase-caption { animation: none; }
   .phase-caption.is-changing::before { content: none; }
   .phase-caption.is-changing .caption-current { animation: none; }
   #practice[data-starting="true"] #session-button { animation: none; transform: translateX(calc(-100vw - 100%)); visibility: hidden; }
