@@ -27,6 +27,7 @@ export class PresetTiles {
   #listeners = [];
   #signature;
   #pressed = null;
+  #suppressClick = false;
   #lastTap = null;
   #holdTimer;
   #heldRelease = null;
@@ -67,9 +68,16 @@ export class PresetTiles {
       }
     });
     this.#listen('pointercancel', () => this.cancelInteraction());
+    this.#listen('click', event => {
+      // A moved or canceled label press must not activate its native radio.
+      // Keep keyboard activation available, even after a touch was canceled.
+      if (this.#suppressClick && event.detail !== 0) event.preventDefault?.();
+    });
     // Touch browsers emit pointerleave after an ordinary lift. Preserve the
     // completed tap so a second touch can use the repeated-tap shortcut.
-    this.#listen('pointerleave', () => this.#cancelPress());
+    this.#listen('pointerleave', () => {
+      if (this.#pressed) this.cancelInteraction();
+    });
     this.#listen('contextmenu', event => {
       if (this.#tileFor(event.target)) event.preventDefault();
     });
@@ -120,24 +128,12 @@ export class PresetTiles {
         number.querySelector('.preset-timing-fraction').textContent = fraction === undefined ? '' : `.${fraction}`;
       }
       // Inhale/exhale share one column, and the two holds share the other.
-      const columns = [];
       for (const [index, column] of ['first', 'second'].entries()) {
         const rows = [values[index], values[index + 2]];
         const whole = Math.max(...rows.map(([digits]) => digits.length));
         const fraction = rows.some(([, digits]) => digits !== undefined) ? 1.5 : 0;
-        columns.push({ whole, fraction });
         timing.style.setProperty(`--preset-${column}-whole`, `${whole}ch`);
         timing.style.setProperty(`--preset-${column}-fraction`, `${fraction}ch`);
-      }
-      // Balance the painted dots between visible digits without moving their aligned columns.
-      const separatorShift = (left, right) => {
-        const unusedFraction = values[left][1] === undefined ? columns[left % 2].fraction : 0;
-        const leadingSpace = columns[right % 2].whole - values[right][0].length;
-        return `${(leadingSpace - unusedFraction) / 2}ch`;
-      };
-      for (const [index, pair] of timing.querySelectorAll('.preset-timing-pair').entries()) {
-        pair.querySelector('.preset-timing-separator').style.setProperty('--preset-separator-shift', separatorShift(index * 2, index * 2 + 1));
-        if (index === 0) pair.querySelector('.preset-timing-join').style.setProperty('--preset-separator-shift', separatorShift(1, 2));
       }
       timing.dataset.long = String(timing.querySelector('.preset-timing-pair').textContent.length > 12);
       const description = PHASES.map((phase) => preset.config[phase] === 0
@@ -168,6 +164,7 @@ export class PresetTiles {
 
   /** Cancel a pending hold or repeated tap when editing, navigating or leaving. */
   cancelInteraction() {
+    if (this.#pressed) this.#suppressClick = true;
     this.#cancelPress();
     this.#lastTap = null;
     this.#heldRelease = null;
@@ -195,26 +192,26 @@ export class PresetTiles {
   }
 
   #press(event) {
+    if (this.#pressed) this.#suppressClick = true;
     this.#cancelPress();
     this.#heldRelease = null;
     if (event.defaultPrevented || event.isPrimary === false || (event.button !== undefined && event.button !== 0)) {
       this.cancelInteraction();
       return;
     }
+    this.#suppressClick = false;
     const tile = this.#tileFor(event.target);
     if (!tile) return;
     const pressed = { id: tile.dataset.preset, pointerId: event.pointerId,
       x: event.clientX, y: event.clientY, selected: tile.querySelector('input').checked, held: false };
-    // Selection is immediate. Its callback can render and cancel old gesture
-    // state, so arm this hold only after the selected pattern is synchronized.
-    if (!pressed.selected) this.#select(pressed.id);
-    if (!this.#tileFor(tile) || !tile.querySelector('input').checked) return;
+    // Wait for a completed tap or stationary hold before changing selection,
+    // so dragging the panels across a pattern leaves the rhythm unchanged.
     this.#pressed = pressed;
     this.#holdTimer = this.#window.setTimeout(() => {
       if (this.#pressed !== pressed || !this.#tileFor(tile)) return;
       this.#holdTimer = undefined;
       pressed.held = true;
-      // The hold only requests editing; this pattern was selected on press.
+      if (!tile.querySelector('input').checked) this.#select(pressed.id);
       if (!this.#tileFor(tile) || !tile.querySelector('input').checked) return;
       this.cancelInteraction();
       this.#heldRelease = pressed.pointerId;
@@ -233,8 +230,15 @@ export class PresetTiles {
     if (!pressed || event.pointerId !== pressed.pointerId) return;
     const tile = this.#tileFor(event.target);
     this.#cancelPress();
-    if (tile?.dataset.preset !== pressed.id) return;
-    if (!pressed.held && pressed.selected && tile.querySelector('input').checked) this.#tap(pressed.id);
+    if (tile?.dataset.preset !== pressed.id
+      || Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > MOVE_TOLERANCE_PX) {
+      this.#suppressClick = true;
+      this.#lastTap = null;
+      event.preventDefault?.();
+      return;
+    }
+    if (!pressed.selected) this.#select(pressed.id);
+    else if (!pressed.held && tile.querySelector('input').checked) this.#tap(pressed.id);
   }
 
   #select(id) {

@@ -13,6 +13,8 @@ export class PanelSwitcher {
   #root;
   #panels;
   #tabs;
+  #tabStrip;
+  #tabDrag = null;
   #onChange;
   #canSwitch;
   #active = 'timing';
@@ -43,6 +45,7 @@ export class PanelSwitcher {
     this.#root = document.getElementById('practice');
     this.#panels = { timing: document.getElementById('timing-panel'), settings: document.getElementById('display-settings') };
     this.#tabs = { timing: document.getElementById('timing-tab'), settings: document.getElementById('settings-tab') };
+    this.#tabStrip = document.getElementById('panel-tabs');
     if (!this.#root?.dataset || typeof this.#root.contains !== 'function'
       || Object.values(this.#panels).some(element => !element?.dataset
         || !('hidden' in element) || typeof element.setAttribute !== 'function' || typeof element.removeAttribute !== 'function')
@@ -66,6 +69,20 @@ export class PanelSwitcher {
     }
     this.#listen(document, 'pointerdown', event => {
       this.#suppressClick = false;
+      if (this.#tabDrag && event.isPrimary === false) { this.#cancel(); return; }
+      if (this.#tabStrip?.contains(event.target) && !event.defaultPrevented
+        && event.isPrimary !== false && (event.button === undefined || event.button === 0) && this.#available()) {
+        this.#cancel();
+        const timing = this.#tabs.timing.getBoundingClientRect();
+        const settings = this.#tabs.settings.getBoundingClientRect();
+        const travel = settings.left - timing.left;
+        if (travel > 0) {
+          this.#finishMotion();
+          this.#tabDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, travel,
+            origin: this.#active === 'settings' ? travel : 0, offset: 0, moved: false };
+        }
+        return;
+      }
       const path = event.composedPath?.() ?? [event.target];
       const explicitSource = path.some(node => node?.dataset?.panelGestureSource === this.#root.id);
       this.#pointerReady = event.pointerType === 'touch' && event.isPrimary !== false
@@ -73,7 +90,10 @@ export class PanelSwitcher {
         && (explicitSource || this.#root.contains(event.target) && !this.#excludedTarget(event.target));
       if (!this.#pointerReady) this.#gesture = null;
     }, true);
+    this.#listen(document, 'pointermove', event => this.#moveTabDrag(event), { passive: false });
+    this.#listen(document, 'pointerup', event => this.#releaseTabDrag(event));
     this.#listen(document, 'touchstart', event => {
+      if (event.touches.length !== 1) { this.#cancel(); return; }
       const ready = this.#pointerReady;
       this.#pointerReady = false;
       this.#gesture = null;
@@ -229,7 +249,54 @@ export class PanelSwitcher {
     }
   }
 
-  #cancel() { this.#gesture = null; this.#pointerReady = false; }
+  #moveTabDrag(event) {
+    const drag = this.#tabDrag;
+    if (!drag || event.pointerId !== drag.id) return;
+    if (!this.#available()) { this.#cancel(); return; }
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (!drag.moved) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
+      if (Math.abs(dx) <= Math.abs(dy) * DIRECTION_RATIO) { this.#cancel(); return; }
+      drag.moved = true;
+      this.#tabStrip.setPointerCapture?.(event.pointerId);
+      this.#root.dataset.panelDragging = 'true';
+    }
+    drag.offset = Math.max(0, Math.min(drag.travel, drag.origin + dx));
+    this.#tabStrip.style.setProperty('--panel-drag-offset', `${drag.offset}px`);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  #releaseTabDrag(event) {
+    const drag = this.#tabDrag;
+    if (!drag || event.pointerId !== drag.id) return;
+    this.#moveTabDrag(event);
+    if (this.#tabDrag !== drag) return;
+    this.#tabDrag = null;
+    this.#releaseCapture(drag);
+    delete this.#root.dataset.panelDragging;
+    this.#tabStrip.style.removeProperty('--panel-drag-offset');
+    if (!drag.moved) return;
+    this.#suppressClick = true;
+    const destination = drag.offset >= drag.travel / 2 ? 'settings' : 'timing';
+    if (this.show(destination)) {
+      this.#tabStrip.style.setProperty('--panel-indicator-start', `${drag.offset}px`);
+    }
+    if (event.cancelable) event.preventDefault();
+  }
+
+  #cancel() {
+    this.#gesture = null;
+    this.#pointerReady = false;
+    const drag = this.#tabDrag;
+    this.#tabDrag = null;
+    this.#releaseCapture(drag);
+    delete this.#root.dataset.panelDragging;
+    this.#tabStrip?.style?.removeProperty('--panel-drag-offset');
+  }
+
+  #releaseCapture(drag) {
+    if (drag && this.#tabStrip.hasPointerCapture?.(drag.id)) this.#tabStrip.releasePointerCapture(drag.id);
+  }
 
   #slideDuration() {
     const value = this.#window.getComputedStyle(this.#root).getPropertyValue('--panel-slide-duration').trim();
@@ -249,6 +316,7 @@ export class PanelSwitcher {
     this.#window.clearTimeout(this.#motionTimer);
     this.#motion = null;
     delete this.#root.dataset.panelMotion;
+    this.#tabStrip?.style?.removeProperty('--panel-indicator-start');
     this.#render();
   }
 

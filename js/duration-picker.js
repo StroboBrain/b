@@ -9,8 +9,11 @@ const REPEAT_INTERVAL_MS = 100;
 const STEP_REVEAL_DELAY_MS = 160;
 const STEP_REVEAL_PAUSE_MS = 120;
 const EXPANSION_DURATION_MS = 760;
+const RISE_EASING = 'cubic-bezier(.4, 0, .6, 1)';
 const SLIDE_DURATION_MS = 500;
 const SLIDE_EASING = 'cubic-bezier(.5, 0, .85, .5)';
+const DOUBLE_TAP_MS = 320;
+const TAP_DISTANCE_PX = 20;
 
 /** Timing controls only. The caller owns editing policy and persistence.
  * Render a validated configuration before using the controls; every accepted
@@ -35,6 +38,9 @@ export class DurationPicker {
   #transferred = new WeakSet();
   #slide = null;
   #context = null;
+  #tapPress = null;
+  #lastTap = null;
+  #dismissClick = null;
 
   constructor({ document, window, container, onChange, canChange = () => true,
     canActivateOutside = () => false } = {}) {
@@ -59,8 +65,17 @@ export class DurationPicker {
     }));
 
     // Pattern gestures can open the editor before their trailing click arrives.
-    this.#listen(document, 'pointerdown', () => { this.#openingSource = null; }, true);
+    this.#listen(document, 'pointerdown', () => {
+      this.#openingSource = null;
+      this.#dismissClick = null;
+    }, true);
     this.#listen(document, 'click', (event) => {
+      if (this.#dismissClick && event.detail !== 0) {
+        this.#dismissClick = null;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (!this.#openingSource?.contains(event.target)) return;
       this.#openingSource = null;
       event.preventDefault();
@@ -87,11 +102,32 @@ export class DurationPicker {
       },
     });
 
-    this.#listen(container, 'pointerdown', (event) => this.#startPress(event));
+    this.#listen(container, 'pointerdown', (event) => {
+      if (!this.#startTap(event)) this.#startPress(event);
+    });
     this.#listen(container, 'click', (event) => this.#click(event));
-    const release = (event) => this.#finishPress(event.pointerId);
+    this.#listen(container, 'dblclick', (event) => {
+      const controls = this.#controlsForTarget(event.target);
+      if (!controls?.picker.matches(':popover-open')) return;
+      event.preventDefault();
+      this.close();
+      controls.value.focus({ preventScroll: true });
+    });
+    const release = (event) => {
+      this.#endTap(event);
+      this.#finishPress(event.pointerId);
+    };
     this.#listen(document, 'pointerup', release);
-    this.#listen(document, 'pointercancel', release);
+    this.#listen(document, 'pointercancel', (event) => {
+      this.#tapPress = this.#lastTap = null;
+      this.#finishPress(event.pointerId);
+    });
+    this.#listen(document, 'pointermove', (event) => {
+      const press = this.#tapPress;
+      if (press && press.id === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > TAP_DISTANCE_PX) {
+        this.#tapPress = this.#lastTap = null;
+      }
+    }, { passive: true });
     this.#listen(container, 'lostpointercapture', release);
     // Viewport and layout changes reposition an open editor; ordinary scrolls
     // leave its targets still while a gesture is in progress.
@@ -99,7 +135,10 @@ export class DurationPicker {
     if (window.visualViewport?.addEventListener) {
       this.#listen(window.visualViewport, 'resize', () => this.#positionOpenPicker());
     }
-    this.#listen(window, 'blur', () => this.#finishPress());
+    this.#listen(window, 'blur', () => {
+      this.#tapPress = this.#lastTap = null;
+      this.#finishPress();
+    });
     this.#listen(document, 'keydown', (event) => {
       if (event.key !== 'Escape') return;
       const controls = Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'));
@@ -178,6 +217,7 @@ export class DurationPicker {
 
   close({ immediately = false } = {}) {
     this.#openingSource = null;
+    this.#tapPress = this.#lastTap = null;
     this.#finishSlide();
     this.#finishPress();
     const controls = this.#revealSequence?.controls;
@@ -228,6 +268,46 @@ export class DurationPicker {
         return;
       }
       this.#step(button);
+    }
+  }
+
+  #controlsForTarget(target) {
+    const picker = target?.closest?.('.duration-picker');
+    return picker && Object.values(this.#controls).find(controls => controls.picker === picker);
+  }
+
+  /** A second nearby tap dismisses before its adjustment or trailing click can run. */
+  #startTap(event) {
+    if (event.button !== 0 || event.isPrimary === false) return false;
+    const controls = this.#controlsForTarget(event.target);
+    if (!controls?.picker.matches(':popover-open')) {
+      this.#tapPress = this.#lastTap = null;
+      return false;
+    }
+    const time = event.timeStamp ?? Date.now();
+    const previous = this.#lastTap;
+    if (previous?.controls === controls && time - previous.time >= 0 && time - previous.time <= DOUBLE_TAP_MS
+      && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= TAP_DISTANCE_PX) {
+      this.close();
+      this.#dismissClick = controls;
+      controls.value.focus({ preventScroll: true });
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return true;
+    }
+    this.#tapPress = { controls, id: event.pointerId, time, x: event.clientX, y: event.clientY };
+    this.#lastTap = null;
+    return false;
+  }
+
+  #endTap(event) {
+    const press = this.#tapPress;
+    if (!press || press.id !== event.pointerId) return;
+    this.#tapPress = null;
+    const time = event.timeStamp ?? Date.now();
+    if (time - press.time <= DOUBLE_TAP_MS && press.controls.picker.matches(':popover-open')
+      && Math.hypot(event.clientX - press.x, event.clientY - press.y) <= TAP_DISTANCE_PX) {
+      this.#lastTap = { ...press, time };
     }
   }
 
@@ -325,7 +405,7 @@ export class DurationPicker {
     const style = this.#window.getComputedStyle?.(picker);
     controls.shellMotion = {
       duration: parseCssMilliseconds(style?.transitionDuration?.split(',')[0] ?? '', EXPANSION_DURATION_MS),
-      easing: this.#reverseEasing(this.#cssList(style?.transitionTimingFunction)[0] ?? 'cubic-bezier(.16, 1, .3, 1)'),
+      easing: this.#reverseEasing(this.#cssList(style?.transitionTimingFunction)[0] ?? RISE_EASING),
     };
     output.closest('.picker-center').focus({ preventScroll: true });
   }
@@ -335,6 +415,7 @@ export class DurationPicker {
     const { picker, value: trigger, 'picked-value': output } = controls;
     const origin = previous.picker.getBoundingClientRect();
     this.#openingSource = null;
+    this.#tapPress = this.#lastTap = null;
     this.#finishPress();
     this.#finishSlide({ cancel: true });
     this.#finishImmediately(controls);
@@ -418,9 +499,13 @@ export class DurationPicker {
     picker.style.maxWidth = `${viewportWidth}px`;
     picker.style.maxHeight = `${Math.max(0, height - 16)}px`;
     picker.dataset.compact = String(height < 272);
-    const openHeight = Math.min(content.offsetHeight + 8, Math.max(0, height - 16));
+    const edgeValue = this.#window.getComputedStyle?.(picker).getPropertyValue('--picker-edge-space').trim() ?? '';
+    const edgeSpace = /^(\d+(?:\.\d+)?)px$/.test(edgeValue) ? Number.parseFloat(edgeValue) : NaN;
+    const frameSpace = edgeSpace >= 0 && edgeSpace <= 24 ? 2 * edgeSpace + 2 : 8;
+    const contentHeight = content.offsetHeight + frameSpace;
+    const openHeight = Math.min(contentHeight, Math.max(0, height - 16));
     controls.openHeight = openHeight;
-    picker.dataset.scrollable = String(content.offsetHeight + 8 > openHeight);
+    picker.dataset.scrollable = String(contentHeight > openHeight);
     const pickerLeft = Math.max(left + 8, Math.min(anchor.left + (anchor.width - picker.offsetWidth) / 2, left + width - picker.offsetWidth - 8));
     const pickerTop = Math.max(top + 8, Math.min(anchor.top + (anchor.height - openHeight) / 2, top + height - openHeight - 8));
     picker.style.left = `${pickerLeft}px`;
@@ -466,7 +551,7 @@ export class DurationPicker {
           const easings = this.#cssList(stepStyle?.transitionTimingFunction);
           return { transform: stepStyle?.transform ?? `translateY(${index < 2 ? 12 : -12}px)`,
             opacityEasing: this.#reverseEasing(easings[0] ?? 'ease'),
-            transformEasing: this.#reverseEasing(easings.at(-1) ?? 'cubic-bezier(.16, 1, .3, 1)') };
+            transformEasing: this.#reverseEasing(easings.at(-1) ?? RISE_EASING) };
         });
         sequence.stage = 1;
         sequence.timer = this.#window.setTimeout(() => {
@@ -520,7 +605,7 @@ export class DurationPicker {
     picker.style.setProperty('--picker-close-fine-duration', `${fineDuration}ms`);
     picker.style.setProperty('--picker-close-collapse-delay', `${collapseDelay}ms`);
     picker.style.setProperty('--picker-close-collapse-duration', `${duration}ms`);
-    picker.style.setProperty('--picker-close-collapse-easing', controls.shellMotion?.easing ?? 'cubic-bezier(.7, 0, .84, 0)');
+    picker.style.setProperty('--picker-close-collapse-easing', controls.shellMotion?.easing ?? RISE_EASING);
     picker.style.setProperty('--picker-close-total-duration', `${collapseDelay + duration}ms`);
     this.#closing.set(controls, {});
     picker.dataset.closing = 'true';
@@ -530,7 +615,7 @@ export class DurationPicker {
       const motion = controls.stepMotion?.[index];
       button.style.setProperty('--picker-close-transform', motion?.transform ?? `translateY(${index < 2 ? 12 : -12}px)`);
       button.style.setProperty('--picker-close-opacity-easing', motion?.opacityEasing ?? 'cubic-bezier(.75, 0, .75, .9)');
-      button.style.setProperty('--picker-close-transform-easing', motion?.transformEasing ?? 'cubic-bezier(.7, 0, .84, 0)');
+      button.style.setProperty('--picker-close-transform-easing', motion?.transformEasing ?? RISE_EASING);
       button.dataset.folding = String(button.dataset.revealed === 'true');
       button.inert = true;
     }
