@@ -1,6 +1,7 @@
-const SWIPE_DISTANCE_PX = 48;
+const SWIPE_DISTANCE_PX = 32;
 const DIRECTION_RATIO = 1.3;
-const SLIDE_DURATION_MS = 1500;
+const GESTURE_START_PX = 6;
+const SLIDE_DURATION_MS = 1200;
 const PANEL_NAMES = Object.freeze(['timing', 'settings']);
 
 /** Two interchangeable control panels beneath one persistent breathing stage.
@@ -111,7 +112,7 @@ export class PanelSwitcher {
       gesture.lastX = touch.clientX;
       gesture.lastY = touch.clientY;
       const horizontal = Math.abs(touch.clientX - gesture.x), vertical = Math.abs(touch.clientY - gesture.y);
-      if (gesture.axis === null && Math.max(horizontal, vertical) >= 10) {
+      if (gesture.axis === null && Math.max(horizontal, vertical) >= GESTURE_START_PX) {
         if (horizontal > vertical * DIRECTION_RATIO) gesture.axis = 'horizontal';
         else if (vertical >= horizontal) gesture.axis = 'vertical';
       }
@@ -247,7 +248,7 @@ export class PanelSwitcher {
     if (!this.#available()) { this.#cancel(); return; }
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
     if (!drag.moved) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < GESTURE_START_PX) return;
       if (Math.abs(dx) <= Math.abs(dy) * DIRECTION_RATIO) { this.#cancel(); return; }
       drag.moved = true;
       this.#tabStrip.setPointerCapture?.(event.pointerId);
@@ -315,7 +316,7 @@ export class PanelSwitcher {
     const value = this.#window.getComputedStyle(this.#root).getPropertyValue('--panel-swipe-distance').trim();
     const match = /^(\d+(?:\.\d+)?|\.\d+)px$/.exec(value);
     const pixels = match ? Number(match[1]) : NaN;
-    return pixels >= 32 && pixels <= 120 ? pixels : SWIPE_DISTANCE_PX;
+    return pixels >= 16 && pixels <= 120 ? pixels : SWIPE_DISTANCE_PX;
   }
 
   #beginMotion(outgoing, direction) {

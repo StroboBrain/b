@@ -150,10 +150,10 @@ button:disabled, .preset-tile:has(:disabled) {
   overflow-x: clip;
 }
 .practice-card {
-  --panel-slide-duration: 1500ms;
+  --panel-slide-duration: 1200ms;
   --panel-slide-easing: cubic-bezier(.65, 0, .35, 1);
   --panel-travel-gap: 28px;
-  --panel-swipe-distance: 48px;
+  --panel-swipe-distance: 32px;
   --hold-choice-size: 80px;
   --hold-sample-size: 36px;
   --pattern-font-size: 17px;
@@ -166,6 +166,8 @@ button:disabled, .preset-tile:has(:disabled) {
   --start-fold-duration: 800ms;
   --play-enter-duration: 1200ms;
   --setup-enter-duration: 1200ms;
+  --timings-enter-duration: 1400ms;
+  --timings-exit-duration: 1150ms;
   min-width: 0;
   min-height: calc(100dvh - 8px);
   background: var(--surface);
@@ -884,8 +886,6 @@ fieldset {
   margin-top: var(--box-gap);
 }
 #timing-fields {
-  --timings-enter-duration: var(--play-enter-duration);
-  --timings-exit-duration: calc(var(--start-fold-duration) * 1.25);
   position: relative;
   background: var(--surface);
   opacity: 1;

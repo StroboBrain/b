@@ -95,6 +95,8 @@ export class BreathingApp {
     this.#durationPicker = new DurationPicker({ document, window, container: this.#elements['timing-fields'],
       onChange: (phase, value) => this.#setField(phase, value),
       canChange: () => this.#status === 'idle' && !this.#pendingStart && this.#panels?.active !== 'settings',
+      // DurationPicker consults these destinations only in the explicit Dev
+      // direct-interaction experiment; normal outside presses dismiss first.
       canActivateOutside: (target) => target === this.#elements['settings-tab']
         || target === this.#elements['timing-tab']
         || (target?.parentElement === this.#elements['preset-tiles']

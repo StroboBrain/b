@@ -20,6 +20,7 @@ const TAP_DISTANCE_PX = 20;
  * edit is reported through onChange.
  */
 export class DurationPicker {
+  #document;
   #window;
   #controls;
   #onChange;
@@ -52,6 +53,7 @@ export class DurationPicker {
     if ([onChange, canChange, canActivateOutside].some((callback) => typeof callback !== 'function')) {
       throw new TypeError('DurationPicker requires change and editing callbacks.');
     }
+    this.#document = document;
     this.#window = window;
     this.#onChange = onChange;
     this.#canChange = canChange;
@@ -82,10 +84,14 @@ export class DurationPicker {
       event.stopImmediatePropagation();
     }, true);
     this.#outsideDismissal = new OutsideDismissal({ document,
-      surface: () => Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'))?.picker,
+      surface: () => this.#dismissalSurface(),
       onDismiss: () => this.close(),
       isInside: (event, surface) => {
         const path = event.composedPath?.();
+        if (this.#insideSurface(event, surface)) return true;
+        // Direct destinations are an explicit development experiment. Release
+        // and the default interaction consume every outside gesture first.
+        if (!this.#directInteraction()) return false;
         if (path?.some(node => node?.dataset?.keepDurationPickerOpen === 'true')) return true;
         // Another timing, pattern or explicit navigation is a direct destination.
         // Other outside controls still consume the gesture for dismissal.
@@ -94,9 +100,9 @@ export class DurationPicker {
         if (destination && !destination.matches(':disabled') && this.#canChange()
           && (canActivateOutside(destination)
             || (button && Object.values(this.#controls).some(({ value, picker }) => value === button && picker !== surface)))) return true;
-        if (path) return path.includes(surface);
+        if (path) return false;
         for (let element = event.target; element; element = element.parentElement) {
-          if (element === surface || element.dataset?.keepDurationPickerOpen === 'true') return true;
+          if (element.dataset?.keepDurationPickerOpen === 'true') return true;
         }
         return false;
       },
@@ -140,13 +146,44 @@ export class DurationPicker {
       this.#finishPress();
     });
     this.#listen(document, 'keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      const controls = Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'));
+      const surface = this.#dismissalSurface();
+      if (!surface) return;
+      if (event.key === 'Tab' && !this.#directInteraction()) {
+        const controls = Object.values(this.#controls).find(({ picker }) => picker === surface);
+        const targets = [controls.increase, controls['fine-increase'], controls['picked-value'].closest('.picker-center'),
+          controls['fine-decrease'], controls.decrease].filter(button => !button.disabled && !button.inert);
+        if (!targets.length) { event.preventDefault(); return; }
+        const first = targets[0], last = targets.at(-1), active = document.activeElement;
+        if (!targets.includes(active) || active === (event.shiftKey ? first : last)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus({ preventScroll: true });
+        }
+        return;
+      }
+      if (event.key !== 'Escape') {
+        if (this.#directInteraction() || this.#insideSurface(event, surface)
+          || !['Enter', ' ', 'Spacebar', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation?.();
+        this.close();
+        return;
+      }
+      if (this.#directInteraction() && !this.#insideSurface(event, surface)) return;
+      const controls = Object.values(this.#controls).find(({ picker }) => picker === surface);
       if (!controls) return;
       event.preventDefault();
+      event.stopImmediatePropagation?.();
       this.close();
       controls.value.focus({ preventScroll: true });
-    });
+    }, true);
+    this.#listen(document, 'focusin', (event) => {
+      if (this.#directInteraction()) return;
+      const surface = this.#dismissalSurface();
+      if (!surface || this.#insideSurface(event, surface)) return;
+      const controls = Object.values(this.#controls).find(({ picker }) => picker === surface);
+      const target = surface.matches(':popover-open') ? controls['picked-value'].closest('.picker-center') : controls.value;
+      if (event.target !== target) target.focus({ preventScroll: true });
+    }, true);
     this.#listen(document, 'visibilitychange', () => { if (document.hidden) this.close(); });
     for (const controls of Object.values(this.#controls)) {
       this.#listen(controls.picker, 'scroll', () => this.#revealButtons(controls));
@@ -248,6 +285,24 @@ export class DurationPicker {
   #listen(target, type, listener, options) {
     target.addEventListener(type, listener, options);
     this.#listeners.push(() => target.removeEventListener(type, listener, options));
+  }
+
+  #directInteraction() {
+    return this.#document.documentElement?.dataset?.devPopupInteraction === 'direct';
+  }
+
+  #dismissalSurface() {
+    const open = Object.values(this.#controls).find(({ picker }) => picker.matches(':popover-open'));
+    if (open) return open.picker;
+    if (!this.#directInteraction()) return this.#closing.keys().next().value?.picker;
+    return null;
+  }
+
+  #insideSurface(event, surface) {
+    const path = event.composedPath?.();
+    if (path) return path.includes(surface);
+    for (let node = event.target; node; node = node.parentElement) if (node === surface) return true;
+    return false;
   }
 
   #click(event) {
