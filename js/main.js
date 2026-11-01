@@ -2,6 +2,7 @@ import { BreathingApp } from './app.js';
 import { ViewportLayout } from './viewport-layout.js';
 import { PortraitOrientation } from './portrait-orientation.js';
 import { GuideLayout } from './guide-layout.js';
+import { GuideAnimation } from './guide-animation.js';
 
 const appShell = document.getElementById('app-shell');
 
@@ -13,6 +14,7 @@ try {
   appShell.hidden = false;
   new ViewportLayout();
   new GuideLayout();
+  new GuideAnimation();
   new PortraitOrientation();
 } catch (error) {
   if (appShell) appShell.hidden = true;

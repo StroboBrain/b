@@ -39,6 +39,7 @@
     <link rel="modulepreload" href="./js/outside-dismissal.js">
     <link rel="modulepreload" href="./js/viewport-layout.js">
     <link rel="modulepreload" href="./js/guide-layout.js">
+    <link rel="modulepreload" href="./js/guide-animation.js">
     <link rel="modulepreload" href="./js/portrait-orientation.js">
     <link rel="modulepreload" href="./js/panel-switcher.js">
     
@@ -206,9 +207,6 @@
                     </div>
                   </fieldset>
                   </div>
-                  <footer class="install-footer">
-                    <button id="install-button" class="button button-outline" type="button" hidden>install app</button>
-                  </footer>
                 </section>
               </div>
               <p id="settings-note" class="settings-note" role="status"></p>
@@ -216,6 +214,9 @@
           </section>
         </div>
       </main>
+      <footer class="install-footer">
+        <button id="install-button" class="button button-outline" type="button" hidden>install as app</button>
+      </footer>
       <div id="notification" class="notification" role="status"></div>
     </div>
     <p id="startup-error" class="app-shell noscript-message" role="alert" hidden>the app could not start. reload the page.</p>
