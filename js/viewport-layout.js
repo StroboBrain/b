@@ -17,6 +17,7 @@ export class ViewportLayout {
     this.#root.style.setProperty('--scrollbar-space', `${width}px`);
   };
 
+  /** @param {{window?: any, document?: any}} [options] Minimal measurement ports also support injected test doubles. */
   constructor({ window = globalThis.window, document = globalThis.document } = {}) {
     if (typeof window?.addEventListener !== 'function' || typeof window.removeEventListener !== 'function'
       || !Number.isFinite(window.innerWidth) || typeof document?.documentElement?.getBoundingClientRect !== 'function'

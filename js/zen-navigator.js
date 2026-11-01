@@ -5,6 +5,7 @@ export class ZenNavigator {
   #enabled = null;
   #sync = () => this.#set(this.#window.location.hash === '#zen');
 
+  /** @param {{window?: any, onChange?: (enabled: boolean) => void}} [options] The browser port is checked before listeners are registered. */
   constructor({ window, onChange } = {}) {
     if (typeof window?.addEventListener !== 'function') throw new TypeError('The window must provide addEventListener().');
     for (const method of ['pushState', 'replaceState', 'back']) {

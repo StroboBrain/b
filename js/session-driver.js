@@ -8,6 +8,7 @@ export class SessionDriver {
   #onChange;
   #timer = null;
 
+  /** @param {{engine?: Pick<import('./breathing-engine.js').BreathingEngine, 'getSnapshot'|'start'|'resume'|'pause'|'reset'|'tick'>, setTimeout?: (callback: () => void, delay: number) => any, clearTimeout?: (handle: any) => void, onChange?: (snapshot: ReturnType<import('./breathing-engine.js').BreathingEngine['getSnapshot']>) => void}} [options] */
   constructor({ engine, setTimeout = globalThis.setTimeout, clearTimeout = globalThis.clearTimeout, onChange } = {}) {
     for (const method of ['getSnapshot', 'start', 'resume', 'pause', 'reset', 'tick']) {
       if (typeof engine?.[method] !== 'function') throw new TypeError(`The session engine must provide ${method}().`);

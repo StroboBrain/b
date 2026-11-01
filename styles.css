@@ -168,6 +168,8 @@ button:disabled, .preset-tile:has(:disabled) {
   --caption-move-duration: 700ms;
   --caption-grow-duration: 300ms;
   --guides-contract-duration: 800ms;
+  --preview-flash-duration: 1500ms;
+  --preview-motion-duration: 1000ms;
   --start-fold-duration: 800ms;
   --play-enter-duration: 1200ms;
   --setup-enter-duration: 1200ms;

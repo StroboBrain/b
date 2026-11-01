@@ -6,6 +6,7 @@
  * @property {number} holdOut Seconds in tenths, 0–99.
  */
 
+/** @type {Readonly<BreathingConfig>} */
 export const DEFAULT_CONFIG = Object.freeze({
   inhale: 4,
   holdIn: 4,

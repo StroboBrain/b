@@ -4,6 +4,7 @@
   --picker-slide-easing: cubic-bezier(.5, 0, .85, .5);
 }
 .duration-picker {
+  --picker-expansion-duration: 760ms;
   --picker-step-fade-duration: 260ms;
   --picker-edge-space: 7px;
   --picker-shell-easing: cubic-bezier(.4, 0, .6, 1);
@@ -23,7 +24,7 @@
   background: transparent;
 }
 .duration-picker:popover-open:not([data-closing="true"]) {
-  transition-duration: 760ms;
+  transition-duration: var(--picker-expansion-duration);
   transition-timing-function: var(--picker-shell-easing);
 }
 .duration-picker .picker-content { --picker-gap: 8px; }
@@ -58,10 +59,10 @@
   height: var(--picker-closed-height, 56px);
   top: var(--picker-closed-top, 0px);
   transition:
-    height var(--picker-close-collapse-duration, 760ms) var(--picker-close-collapse-easing, var(--picker-shell-easing)) var(--picker-close-collapse-delay, 0ms),
-    top var(--picker-close-collapse-duration, 760ms) var(--picker-close-collapse-easing, var(--picker-shell-easing)) var(--picker-close-collapse-delay, 0ms),
-    display var(--picker-close-total-duration, 760ms) allow-discrete,
-    overlay var(--picker-close-total-duration, 760ms) allow-discrete;
+    height var(--picker-close-collapse-duration, var(--picker-expansion-duration)) var(--picker-close-collapse-easing, var(--picker-shell-easing)) var(--picker-close-collapse-delay, 0ms),
+    top var(--picker-close-collapse-duration, var(--picker-expansion-duration)) var(--picker-close-collapse-easing, var(--picker-shell-easing)) var(--picker-close-collapse-delay, 0ms),
+    display var(--picker-close-total-duration, var(--picker-expansion-duration)) allow-discrete,
+    overlay var(--picker-close-total-duration, var(--picker-expansion-duration)) allow-discrete;
 }
 .duration-picker[data-closing="true"] .duration-step[data-folding="true"] {
   --picker-close-step-duration: var(--picker-close-coarse-duration);

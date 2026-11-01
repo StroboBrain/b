@@ -14,6 +14,7 @@ import { SettingsPreview } from './settings-preview.js';
 import { InstallPrompt } from './install-prompt.js';
 import { PanelSwitcher } from './panel-switcher.js';
 import { OutsideDismissal } from './outside-dismissal.js';
+import { acquireGestureArbiter, GESTURE_PRIORITIES } from './gesture-arbiter.js';
 import { formatDuration, phaseDescription, spokenDuration } from './phase-labels.js';
 
 const TOGGLE_PREFERENCES = {
@@ -72,12 +73,15 @@ export class BreathingApp {
   #zenMode = false;
   #panels;
   #pendingStart = null;
+  #gestureArbiter;
 
+  /** @param {{document?: any, window?: any, store?: any, engine?: any}} [options] */
   constructor({ document = globalThis.document, window = globalThis.window,
     store = new PresetStore(), engine = new BreathingEngine() } = {}) {
     this.#document = document;
     this.#window = window;
     this.#elements = collectElements(document);
+    this.#gestureArbiter = acquireGestureArbiter(document);
     this.#store = store;
     this.#sessionView = new SessionView({ elements: this.#elements });
     this.#zenSurroundings = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.install-footer, .preset-options, .display-options, .hold-options, .skip-link, .panel-tabs, .preview-heading, .preview-sound-button'));
@@ -114,7 +118,7 @@ export class BreathingApp {
     new InstallPrompt({ window, button: this.#elements['install-button'],
       onUnavailable: () => this.#notify('install b from your browser menu.'),
     });
-    new OutsideDismissal({ document,
+    new OutsideDismissal({ document, name: 'notification-dismissal', priority: GESTURE_PRIORITIES.NOTIFICATION,
       surface: () => this.#notificationDismissible && this.#elements.notification.classList.contains('is-visible')
         ? this.#elements.notification : null,
       onDismiss: () => this.#hideNotification(),
@@ -153,13 +157,18 @@ export class BreathingApp {
     const ui = this.#elements;
     ui['session-button'].addEventListener('click', () => this.#toggleSession());
     ui['timing-fields'].addEventListener('click', () => this.#presetTiles.cancelInteraction());
-    this.#document.addEventListener('click', (event) => {
-      if (!this.#zenMode || this.#pendingStart || this.#status === 'paused') return;
-      // Capture the tap before a control can act on the restored menu.
-      event.preventDefault();
-      event.stopPropagation();
-      this.#navigation.leave();
-    }, true);
+    this.#gestureArbiter.register({ name: 'zen-exit', priority: GESTURE_PRIORITIES.ZEN, handlers: {
+      click: event => {
+        if (!this.#zenMode || this.#pendingStart || this.#status === 'paused') return;
+        this.#navigation.leave();
+        return true;
+      },
+      keydown: event => {
+        if (event.key !== 'Escape' || !this.#zenMode) return;
+        this.#navigation.leave();
+        return true;
+      },
+    } });
     for (const [id, preference] of Object.entries(TOGGLE_PREFERENCES)) {
       ui[id].addEventListener('change', () => {
         const enabled = ui[id].checked;
@@ -176,9 +185,6 @@ export class BreathingApp {
       if (target.matches('input[type="radio"]') && target.checked && target.value === this.#preferences.holdFeedback) {
         this.#preview.previewAnimation();
       }
-    });
-    this.#document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && this.#zenMode) this.#navigation.leave();
     });
     this.#document.addEventListener('visibilitychange', () => {
       if (this.#document.hidden) this.#suspend();
@@ -395,22 +401,22 @@ export class BreathingApp {
   }
 
   #notify(message, { dismissOnOutside = false } = {}) {
-    clearTimeout(this.#notificationTimer);
-    clearTimeout(this.#notificationClearTimer);
+    this.#window.clearTimeout(this.#notificationTimer);
+    this.#window.clearTimeout(this.#notificationClearTimer);
     const notification = this.#elements.notification;
     this.#notificationDismissible = dismissOnOutside;
     notification.textContent = message;
     notification.classList.add('is-visible');
-    this.#notificationTimer = setTimeout(() => this.#hideNotification(), 5000);
+    this.#notificationTimer = this.#window.setTimeout(() => this.#hideNotification(), 5000);
   }
 
   #hideNotification() {
-    clearTimeout(this.#notificationTimer);
-    clearTimeout(this.#notificationClearTimer);
+    this.#window.clearTimeout(this.#notificationTimer);
+    this.#window.clearTimeout(this.#notificationClearTimer);
     const notification = this.#elements.notification;
     this.#notificationDismissible = false;
     notification.classList.remove('is-visible');
-    this.#notificationClearTimer = setTimeout(() => { notification.textContent = ''; }, 200);
+    this.#notificationClearTimer = this.#window.setTimeout(() => { notification.textContent = ''; }, 200);
   }
 
   #registerOfflineSupport() {

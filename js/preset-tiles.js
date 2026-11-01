@@ -9,7 +9,8 @@ const MOVE_TOLERANCE_PX = 10;
 export function patternName(config, slotNumber) {
   const { inhale, holdIn, exhale, holdOut } = Object.fromEntries(
     PHASES.map(phase => [phase, Math.round(config[phase] * 10)]));
-  if (inhale === exhale) return 'equal';
+  if (inhale === exhale && holdIn === 0 && holdOut === 0) return 'equal';
+  if (inhale === exhale && holdIn > 0 && holdIn === holdOut) return 'box';
   if (holdOut === 0 && inhale * 7 === holdIn * 4 && inhale * 8 === exhale * 4) return '4–7–8';
   if (holdIn === 0 && holdOut === 0 && exhale > inhale) return 'slow';
   return `custom ${slotNumber}`;
@@ -36,6 +37,7 @@ export class PresetTiles {
   #resizeObserver;
   #timings = new Set();
 
+  /** @param {{document?: any, container?: any, onSelect?: (id: string) => void, onEdit?: (id: string) => void, window?: any}} [options] Browser ports are runtime-validated to support lightweight test doubles. */
   constructor({ document, container, onSelect, onEdit = () => {}, window = globalThis } = {}) {
     if (typeof document?.createElement !== 'function' || typeof container?.replaceChildren !== 'function'
       || typeof container.addEventListener !== 'function' || typeof container.removeEventListener !== 'function'

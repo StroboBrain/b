@@ -7,8 +7,9 @@ import { setPhaseCount } from './phase-count.js';
 import { applyPhaseMotion } from './phase-motion.js';
 import { readCssMilliseconds } from './css-time.js';
 
-const FLASH_DURATION_MS = 1500;
-const PLAY_EXIT_MS = 800;
+// CSS custom properties own timing; these fallbacks cover incomplete style ports.
+const FLASH_DURATION_FALLBACK_MS = 1500;
+const PLAY_EXIT_FALLBACK_MS = 800;
 // First pulse: 550ms. Rest: 150ms. Second, slower pulse: 800ms.
 const FLASH_OFFSETS = [0, 275 / 1500, 550 / 1500, 700 / 1500, 1100 / 1500, 1];
 
@@ -27,6 +28,7 @@ export class SettingsPreview {
   #onToggleSound;
   #preferences = { ...DEFAULT_PREFERENCES };
   #enabled = false;
+  /** @type {import('./breathing-engine.js').BreathingConfig} */
   #config = { ...DEFAULT_CONFIG };
   #pageHidden = false;
   #disposed = false;
@@ -44,6 +46,7 @@ export class SettingsPreview {
   #timingDemo = null;
   #controlsExitTimer = null;
 
+  /** @param {{document?: any, window?: any, container?: any, onToggleSound?: () => void, now?: () => number}} [options] */
   constructor({ document, window, container, onToggleSound = () => {},
     now = () => (window.performance ?? globalThis.performance).now() } = {}) {
     if (!container?.querySelector || !document?.addEventListener
@@ -286,7 +289,7 @@ export class SettingsPreview {
       if (!this.#available()) { this.#showReady(); return; }
       this.#container.dataset.previewStep = 'breathing';
       this.#driver.start(this.#config);
-    }, readCssMilliseconds(this.#window.getComputedStyle?.(this.#container), '--start-fold-duration', PLAY_EXIT_MS));
+    }, readCssMilliseconds(this.#window.getComputedStyle?.(this.#container), '--start-fold-duration', PLAY_EXIT_FALLBACK_MS));
     return true;
   }
 
@@ -344,7 +347,7 @@ export class SettingsPreview {
     const rest = { opacity: 1 };
     const peak = { opacity: .45 };
     const duration = readCssMilliseconds(this.#window.getComputedStyle?.(this.#container),
-      '--preview-flash-duration', FLASH_DURATION_MS);
+      '--preview-flash-duration', FLASH_DURATION_FALLBACK_MS);
     const frames = [rest, peak, rest, rest, peak, rest]
       .map((frame, index) => ({ ...frame, offset: FLASH_OFFSETS[index], easing: 'ease-in-out' }));
     const pulse = this.#pulse = this.#heading.animate(frames, { duration, easing: 'linear' });

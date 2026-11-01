@@ -13,6 +13,7 @@ export class PhaseCues {
   #snapshot = null;
   #phaseKey = '';
 
+  /** @param {{window?: any, document?: {hidden: boolean}}} [options] Audio and visibility ports are checked before use. */
   constructor({ window = globalThis.window, document = globalThis.document } = {}) {
     if (!window || typeof window !== 'object') throw new TypeError('A window object is required.');
     if (!document || typeof document.hidden !== 'boolean') throw new TypeError('The document must provide a hidden boolean.');

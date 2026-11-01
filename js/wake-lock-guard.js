@@ -6,6 +6,7 @@ export class WakeLockGuard {
   #request = null;
   #wanted = false;
 
+  /** @param {{navigator?: {wakeLock?: {request: (type: string) => Promise<any>}}, document?: {hidden: boolean}}} [options] */
   constructor({ navigator, document } = {}) {
     if (!navigator || typeof navigator !== 'object') throw new TypeError('A navigator object is required.');
     if (!document || typeof document.hidden !== 'boolean') throw new TypeError('The document must provide a hidden boolean.');

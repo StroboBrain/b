@@ -14,6 +14,7 @@ export class PresetEditor {
   #saved;
   #selectionDirty = false;
 
+  /** @param {{store?: Pick<import('./preset-store.js').PresetStore, 'listPresets'|'loadSelection'|'savePreset'|'saveSelection'>, onStorageError?: (error: Error) => void}} [options] */
   constructor({ store, onStorageError } = {}) {
     for (const method of ['listPresets', 'loadSelection', 'savePreset', 'saveSelection']) {
       if (typeof store?.[method] !== 'function') throw new TypeError(`The preset store must provide ${method}().`);
@@ -54,7 +55,7 @@ export class PresetEditor {
     let saved = true;
     for (const id of this.#dirty) {
       const preset = this.#presets.find((entry) => entry.id === id);
-      if (!this.#persist(() => this.#store.savePreset(preset.id, preset.name, preset.config))) {
+      if (!this.#persist(() => this.#store.savePreset(preset.id, preset.config))) {
         saved = false;
         continue;
       }

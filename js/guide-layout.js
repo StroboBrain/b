@@ -17,6 +17,7 @@ export class GuideLayout {
     }
   };
 
+  /** @param {{window?: any, document?: any}} [options] SVG/browser ports are validated before observation. */
   constructor({ window = globalThis.window, document = globalThis.document } = {}) {
     if (typeof document?.querySelectorAll !== 'function' || typeof window?.addEventListener !== 'function'
       || typeof window.removeEventListener !== 'function') {

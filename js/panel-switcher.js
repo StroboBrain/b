@@ -1,7 +1,13 @@
-const SWIPE_DISTANCE_PX = 32;
+import { acquireGestureArbiter, GESTURE_PRIORITIES } from './gesture-arbiter.js';
+import { readCssMilliseconds } from './css-time.js';
+
+// CSS owns these defaults; these values cover missing or invalid stylesheet ports.
+const SWIPE_DISTANCE_FALLBACK_PX = 32;
 const DIRECTION_RATIO = 1.3;
 const GESTURE_START_PX = 6;
-const SLIDE_DURATION_MS = 1200;
+const SLIDE_DURATION_FALLBACK_MS = 1200;
+const PANEL_INPUT_TYPES = new Set(['pointerdown', 'pointermove', 'pointerup', 'pointercancel',
+  'touchstart', 'touchmove', 'touchend', 'touchcancel', 'click']);
 const PANEL_NAMES = Object.freeze(['timing', 'settings']);
 
 /** Two interchangeable control panels beneath one persistent breathing stage.
@@ -28,7 +34,9 @@ export class PanelSwitcher {
   #reducedMotion;
   #stateObserver;
   #listeners = [];
+  #gestureHandlers = {};
 
+  /** @param {{document?: any, window?: any, onChange?: (name: string) => void, canSwitch?: () => boolean}} [options] */
   constructor({ document = globalThis.document, window = globalThis.window,
     onChange = () => {}, canSwitch = () => true } = {}) {
     if (typeof document?.addEventListener !== 'function' || typeof document.removeEventListener !== 'function'
@@ -138,8 +146,7 @@ export class PanelSwitcher {
     this.#listen(document, 'click', event => {
       if (!this.#suppressClick || event.detail === 0) return;
       this.#suppressClick = false;
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      return true;
     }, true);
     this.#listen(this.#root, 'animationend', event => {
       if (event.animationName && event.animationName !== this.#motion?.animationName) return;
@@ -166,6 +173,9 @@ export class PanelSwitcher {
       this.#stateObserver.observe(this.#root, { attributes: true, attributeFilter: ['data-state', 'style'] });
       this.#stateObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
+    this.#listeners.push(acquireGestureArbiter(document).register({
+      name: 'panel-gestures', priority: GESTURE_PRIORITIES.PANEL, handlers: this.#gestureHandlers,
+    }));
     this.#render();
   }
 
@@ -307,16 +317,15 @@ export class PanelSwitcher {
   }
 
   #slideDuration() {
-    const value = this.#window.getComputedStyle(this.#root).getPropertyValue('--panel-slide-duration').trim();
-    const match = /^(\d+(?:\.\d+)?|\.\d+)(ms|s)$/.exec(value);
-    return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : SLIDE_DURATION_MS;
+    return readCssMilliseconds(this.#window.getComputedStyle(this.#root),
+      '--panel-slide-duration', SLIDE_DURATION_FALLBACK_MS);
   }
 
   #swipeDistance() {
     const value = this.#window.getComputedStyle(this.#root).getPropertyValue('--panel-swipe-distance').trim();
     const match = /^(\d+(?:\.\d+)?|\.\d+)px$/.exec(value);
     const pixels = match ? Number(match[1]) : NaN;
-    return pixels >= 16 && pixels <= 120 ? pixels : SWIPE_DISTANCE_PX;
+    return pixels >= 16 && pixels <= 120 ? pixels : SWIPE_DISTANCE_FALLBACK_PX;
   }
 
   #beginMotion(outgoing, direction) {
@@ -347,6 +356,10 @@ export class PanelSwitcher {
   #interrupt() { this.#cancel(); this.#finishMotion(); }
 
   #listen(target, type, listener, options) {
+    if (target === this.#document && PANEL_INPUT_TYPES.has(type)) {
+      this.#gestureHandlers[type] = listener;
+      return;
+    }
     target.addEventListener(type, listener, options);
     this.#listeners.push(() => target.removeEventListener(type, listener, options));
   }

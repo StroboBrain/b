@@ -1,6 +1,6 @@
 // Keep the legacy prefix so each hosted path can clean up its earlier caches.
 const CACHE_PREFIX = `still-${encodeURIComponent(self.registration.scope)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}a013b4e21f8e`;
+const CACHE_NAME = `${CACHE_PREFIX}ef2c600d8680`;
 const APP_SHELL = [
   './index.html',
   './styles.css',
@@ -16,6 +16,9 @@ const APP_SHELL = [
   './js/main.js',
   './js/offline-support.js',
   './js/duration-picker.js',
+  './js/duration-picker-placement.js',
+  './js/duration-picker-input.js',
+  './js/duration-picker-motion.js',
   './js/preset-tiles.js',
   './js/phase-labels.js',
   './js/phase-caption.js',
@@ -26,10 +29,10 @@ const APP_SHELL = [
   './js/settings-preview.js',
   './js/install-prompt.js',
   './js/outside-dismissal.js',
+  './js/gesture-arbiter.js',
   './js/viewport-layout.js',
   './js/guide-layout.js',
   './js/guide-animation.js',
-  './js/portrait-orientation.js',
   './js/panel-switcher.js',
   './js/preset-editor.js',
   './js/session-driver.js',
@@ -39,6 +42,7 @@ const APP_SHELL = [
   './js/breathing-engine.js',
   './js/preset-store.js',
   './manifest.webmanifest',
+  './screenshots/start-breathing.png',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',

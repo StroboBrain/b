@@ -6,6 +6,7 @@ const PREFERENCES_KEY = 'breathing.preferences.v1';
 
 export const HOLD_FEEDBACK_VARIANTS = Object.freeze(['rise', 'sweep', 'spread', 'fade']);
 
+/** @type {Readonly<{showBreathText: boolean, showBreathNumbers: boolean, showBreathGuides: boolean, showPhaseTimings: boolean, fadeButtons: boolean, soundCue: boolean, holdFeedback: string}>} */
 export const DEFAULT_PREFERENCES = Object.freeze({
   showBreathText: false,
   showBreathNumbers: true,
@@ -112,20 +113,20 @@ export class PresetStore {
 
   static affectsPreferences(key) { return key === null || key === PREFERENCES_KEY; }
 
+  /** @param {{storage?: Pick<Storage, 'getItem'|'setItem'> | null}} [options] Only read/write operations are required of the injected storage port. */
   constructor({ storage = defaultStorage() } = {}) {
     this.#storage = storage;
   }
 
-  /** @returns {Array<{id: string, name: string, config: object}>} Exactly six presets with saved timings. */
+  /** @returns {Array<{id: string, name: string, config: import('./breathing-engine.js').BreathingConfig}>} Exactly six presets with saved timings. */
   listPresets() {
     return presetsFromOverrides(this.#readOverrides(false));
   }
 
   /** Save timings for a permanent preset; names remain fixed.
-   * The name argument remains for callers using the previous storage contract.
    * Unrelated legacy records stay in storage, including hidden added presets.
    */
-  savePreset(id, name, config) {
+  savePreset(id, config) {
     if (typeof id !== 'string') throw new TypeError('A preset ID must be a string.');
     const base = findBase(id);
     if (!base) throw new RangeError('Choose an available preset.');

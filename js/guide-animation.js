@@ -4,6 +4,11 @@ const SVG = 'http://www.w3.org/2000/svg';
 const controllers = new WeakMap();
 export const findGuideAnimation = document => document && controllers.get(document);
 
+/**
+ * @typedef {{id:string, duration:(timing:{contract:number,fade:number,rings:any[]})=>number,
+ * animate:(rings:any[],timing:{animate:Function,contract:number,tail:number,total:number})=>void}} GuideAnimationPlan
+ */
+
 export function animateOneByOne([inner, outer], { animate, total }) {
   const opacity = (from, to) => [{ opacity: 1, offset: 0 }, { opacity: 1, offset: from },
     { opacity: 0, offset: to }, { opacity: 0, offset: 1 }];
@@ -17,6 +22,7 @@ export function animateOneByOne([inner, outer], { animate, total }) {
   }
 }
 
+/** @type {Readonly<GuideAnimationPlan>} */
 export const defaultGuideAnimation = Object.freeze({
   id: 'one-by-one',
   duration: ({ fade, rings }) => Math.max(fade, Math.min(1600, Math.max(...rings.map(ring => ring.dots.length)) * 12)),
@@ -42,6 +48,7 @@ export class GuideAnimation {
   #disposed = false;
   #listeners = [];
 
+  /** @param {{document?: any, window?: any}} [ports] Runtime-validated browser capabilities also permit isolated test ports. */
   constructor({ document = globalThis.document, window = globalThis.window } = {}) {
     if (typeof document?.getElementById !== 'function' || typeof document.createElementNS !== 'function'
       || typeof document.addEventListener !== 'function' || typeof document.removeEventListener !== 'function'
@@ -95,6 +102,7 @@ export class GuideAnimation {
   get speed() { return this.#speed; }
 
   /** Dev may temporarily supply a different animation plan to this same controller. */
+  /** @param {GuideAnimationPlan} animation */
   setAnimation(animation) {
     if (!animation || typeof animation.id !== 'string' || typeof animation.duration !== 'function'
       || typeof animation.animate !== 'function') throw new TypeError('GuideAnimation requires an animation plan.');
