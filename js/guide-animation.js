@@ -76,7 +76,12 @@ export class GuideAnimation {
         this.#shown = shown;
         if (!this.#idle()) { this.#cancel(); return; }
         if (!changed) return;
-        this.#cancel();
+        if (this.#run) {
+          // Keep the current pass intact. Rapid toggles replace the requested
+          // destination instead of interrupting dots or stacking extra passes.
+          this.#run.pendingShown = shown;
+          return;
+        }
         this.#play(shown ? 'show' : 'hide');
       });
       this.#observer.observe(this.#stage, { attributes: true, attributeFilter: ['data-show-guides'] });
@@ -187,7 +192,8 @@ export class GuideAnimation {
     const total = Math.max(1, this.#animation.duration({ contract, fade, rings }));
     const tail = total - contract;
     const duration = total / this.#speed;
-    const run = { overlay, animations: [], timer: null };
+    const run = { overlay, animations: [], timer: null, shown: mode === 'show',
+      pendingShown: /** @type {boolean | null} */ (null) };
     this.#run = run;
     this.#stage.dataset.guidesRunning = mode;
     const animate = (node, keyframes, easing = 'linear') => {
@@ -198,8 +204,17 @@ export class GuideAnimation {
     this.#animation.animate(rings, { animate, contract, tail, total });
     overlay.dataset.duration = String(duration);
     overlay.dataset.speed = String(this.#speed);
-    run.timer = this.#window.setTimeout(() => { if (this.#run === run) this.#cancel(); }, (total + 40) / this.#speed);
+    run.timer = this.#window.setTimeout(() => this.#complete(run), (total + 40) / this.#speed);
     return true;
+  }
+
+  #complete(run) {
+    if (this.#run !== run) return;
+    const pendingShown = run.pendingShown;
+    this.#cancel();
+    if (pendingShown !== null && pendingShown !== run.shown) {
+      this.#play(pendingShown ? 'show' : 'hide');
+    }
   }
 
   #cancel() {
